@@ -12,13 +12,12 @@
 @interface TokenNetworkingHandler : NSObject
 @property(nonatomic ,assign) NSInteger taskID;
 @property(nonatomic ,copy  ) TokenChainRedirectParameterBlock redirectBlock;
-@property(nonatomic ,copy  ) TokenNetSuccessJSONBlock responseJSON;
-@property(nonatomic ,copy  ) TokenNetSuccessTextBlock responseText;
-@property(nonatomic ,copy  ) TokenNetFailureParameterBlock failureBlock;
-@property(nonatomic ,copy  ) TokenNetSuccessJSONBlock willResponseJSON;
-@property(nonatomic ,copy  ) TokenNetSuccessTextBlock willResponseText;
-@property(nonatomic ,strong) NSMutableData *data;
-@property(nonatomic ,weak  ) NSURLSessionTask *task;
+@property(nonatomic ,copy  ) TokenNetSuccessJSONBlock         responseJSON;
+@property(nonatomic ,copy  ) TokenNetSuccessTextBlock         responseText;
+@property(nonatomic ,copy  ) TokenNetFailureParameterBlock    failureBlock;
+@property(nonatomic ,copy  ) TokenNetSuccessJSONBlock         willResponseJSON;
+@property(nonatomic ,copy  ) TokenNetSuccessTextBlock         willResponseText;
+@property(nonatomic ,strong) NSMutableData                    *data;
 @end
 
 @implementation TokenNetworkingHandler
@@ -36,11 +35,10 @@
 @end
 
 @implementation TokenNetworking{
-    dispatch_semaphore_t _sendSemaphore;
-    NSURLSession    *_session;
-    NSMutableArray  *_handles;
-    pthread_mutex_t  _lock;
-    
+    dispatch_semaphore_t  _sendSemaphore;
+    NSURLSession         *_session;
+    NSMutableArray       *_handles;
+    pthread_mutex_t       _lock;
 }
 
 +(NSOperationQueue *)processQueue{
@@ -71,13 +69,14 @@
 {
     self = [super init];
     if (self) {
-        _session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]
-                                                     delegate:self
-                                                delegateQueue:[TokenNetworking processQueue]];
-        _handles = @[].mutableCopy;
+        _session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration
+                                                           defaultSessionConfiguration]
+                                                 delegate:self
+                                            delegateQueue:[TokenNetworking processQueue]];
+        _handles       = @[].mutableCopy;
         _sendSemaphore = dispatch_semaphore_create(1);
         pthread_mutex_init(&_lock, NULL);
-        
+
     }
     return self;
 }
@@ -133,9 +132,9 @@ didCompleteWithError:(NSError *)error {
         });
         return;
     }
-        
+
     NSData *transformedData = handler.data;
-    
+
     if (handler.responseJSON) {
         NSError *error;
         id json = [NSJSONSerialization JSONObjectWithData:transformedData options:(NSJSONReadingAllowFragments) error:&error];
@@ -144,7 +143,7 @@ didCompleteWithError:(NSError *)error {
             !handler.responseJSON?:handler.responseJSON(task,error,json);
         });
     }
-    
+
     if (handler.responseText) {
         NSString *textString = [[NSString alloc] initWithData:transformedData encoding:NSUTF8StringEncoding];
         !handler.willResponseText?:handler.willResponseText(task,textString);
