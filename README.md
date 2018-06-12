@@ -5,38 +5,63 @@ This tool may be useful!
 **Code**
 
 ```
-    TokenNetworking.networking()
-    .sendRequest(^NSURLRequest *(TokenNetworking *netobj) {
-        return NSMutableURLRequest.token_requestWithURL(@"https://xxxx/xx/xx.html")
-                                  .token_setMethod(@"GET")
-                                  .token_setUA(UA)
-                                  .token_setTimeout(30);
-    })
-    .transform(^id(TokenNetworking *netWorkingObj, id responsedObj) {
-        return [netWorkingObj HTMLTextSerializeWithData:responsedObj];
-    })
-    .finish(^(TokenNetworking *netWorkingObj,NSURLSessionTask *task, id responsedObj) {
-        NSLog(@"html text = %@",responsedObj);
-    }, ^(TokenNetworking *netobj,NSError *error) {
-        NSLog(@"error,%@",error);
-    })
-    .afterSendRequest(^NSURLRequest *(TokenNetworking *netobj) {
-        NSString *transformURL = @"https://xxx/xx/xxxxx.json";
-        return NSMutableURLRequest.token_requestWithURL(transformURL)
-                                  .token_setMethod(@"POST");
-    })
-    .transform(^id(TokenNetworking *netWorkingObj, id responsedObj) {
-        return [netWorkingObj JSONSerializeWithData:responsedObj failure:nil];
-    })
-    .finish(^(TokenNetworking *netWorkingObj,NSURLSessionTask *task, id responsedObj) {
-        NSLog(@"%@",responsedObj);
-        
-    }, ^(TokenNetworking *netWorkingObj, NSError *error) {
-        NSLog(@"error,%@",error);
-    });
-    
-    //transform block will handle the data in a background thread.
-    // see TokenNetworking.h for more details!
+    NSString *loginURL = @"https://www.xxx.com";
+     NSDictionary *parameter = @{
+         @"userName":@"xxx",
+         @"password":@"xxx"
+     };
+ 
+     TokenNetworking.networking
+     .postWithURL(loginURL, parameter)
+     .responseJSON(^(NSURLSessionTask *task, NSError *jsonError,id responsedObj) {
+         if (jsonError) {
+             NSLog(@"json parse error %@",jsonError);
+         }
+         if (responsedObj) {
+             NSLog(@"json = %@",responsedObj);
+         }
+     })
+ 
+     // or you can get Text at the same time
+     .responseText(^(NSURLSessionTask *task, NSString *responsedText) {
+        NSLog(@"responsedText = %@",responsedText);
+     })
+ 
+     // or you can send another request one by one
+     .postWithURL(loginURL1, parameter1)
+     .responseJSON(^(NSURLSessionTask *task, NSError *jsonError,id responsedObj) {
+        if (jsonError) {
+            NSLog(@"json parse error %@",jsonError);
+        }
+        if (responsedObj) {
+            NSLog(@"json = %@",responsedObj);
+        }
+     });
+ 
+     //custom request
+ 
+     //creat a Request
+     NSURL *url = [NSURL URLWithString:@"http://www.xxx.com"];
+     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+     request.token_setMethod(@"POST")
+     .token_setTimeout(30);
+ 
+    //send the Request
+     TokenNetworking.networking
+     .request(^NSURLRequest *{
+         return request;
+     })
+     .responseText(^(NSURLSessionTask *task, NSString *responsedText) {
+         NSLog(@"%@",responsedText);
+     })
+     .responseJSON(^(NSURLSessionTask *task, NSError *jsonError,id responsedObj) {
+         if (jsonError) {
+             NSLog(@"json parse error %@",jsonError);
+         }
+         if (responsedObj) {
+             NSLog(@"json = %@",responsedObj);
+         }
+     });
 ```
 
 
