@@ -1,6 +1,5 @@
 //
 //  NSMutableURLRequest+TokenNetworking.h
-//  掌理教务处
 //
 //  Created by 陈雄 on 2017/9/11.
 //  Copyright © 2017年 com.feelings. All rights reserved.
@@ -27,7 +26,6 @@ typedef NSMutableURLRequest *(^NSURLRequestJSONSetBlock)(NSDictionary *dic,NSErr
 typedef NSString *(^TokenNetworkingPostHTTPParameterBlock)(NSDictionary *parameter);
 
 @interface NSMutableURLRequest (TokenNetworking)
-@property(nonatomic ,copy,readonly ,class) TokenNetworkingPostHTTPParameterBlock token_paramterTransformToString;
 @property(nonatomic ,copy,readonly ,class) NSURLRequestInstanceBlock      token_requestWithURL;
 @property(nonatomic ,copy,readonly)        NSURLRequestStringSetBlock     token_setUA;
 @property(nonatomic ,copy,readonly)        NSURLRequestPolicySetBlock     token_setPolicy;
@@ -47,17 +45,3 @@ typedef NSError *(^TokenNetworkingErrorInstacnceBlock)(NSInteger code ,NSString 
                     description:(NSString *)description;
 +(NSError *)token_netError;
 @end
-
-typedef NSUserDefaults *(^UserDefaultsGetInstanceBlock)(void);
-typedef id   (^UserDefaultsGetBlock)(NSString *key);
-typedef void (^UserDefaultsSetBlock)(NSString *key,id obj);
-typedef void (^UserDefaultsSetWithLimitBlock)(NSString *key,id obj ,NSTimeInterval limit);
-
-@interface NSUserDefaults (TokenNetworking)
-@property(nonatomic, copy ,readonly ,class) UserDefaultsGetInstanceBlock token_sharedDefaults;
-@property(nonatomic, copy ,readonly ,class) UserDefaultsGetBlock token_get;
-@property(nonatomic, copy ,readonly ,class) UserDefaultsSetBlock token_set;
-@property(nonatomic, copy ,readonly ,class) UserDefaultsSetWithLimitBlock token_setWithLimit;
-@end
-
-

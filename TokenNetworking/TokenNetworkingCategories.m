@@ -1,6 +1,5 @@
 //
 //  NSMutableURLRequest+TokenNetworking.m
-//  掌理教务处
 //
 //  Created by 陈雄 on 2017/9/11.
 //  Copyright © 2017年 com.feelings. All rights reserved.
@@ -83,8 +82,8 @@ NSString * TokenPercentEscapedStringFromString(NSString *string) {
 
 #pragma mark -
 
-FOUNDATION_EXPORT NSArray * TokenQueryStringPairsFromDictionary(NSDictionary *dictionary);
-FOUNDATION_EXPORT NSArray * TokenQueryStringPairsFromKeyAndValue(NSString *key, id value);
+NSArray * TokenQueryStringPairsFromDictionary(NSDictionary *dictionary);
+NSArray * TokenQueryStringPairsFromKeyAndValue(NSString *key, id value);
 
 NSString * TokenQueryStringFromParameters(NSDictionary *parameters) {
     NSMutableArray *mutablePairs = [NSMutableArray array];
@@ -143,12 +142,6 @@ NSArray * TokenQueryStringPairsFromKeyAndValue(NSString *key, id value) {
     return [NSMutableURLRequest requestWithURL:[NSURL URLWithString:string]];
 }
 
-+(TokenNetworkingPostHTTPParameterBlock)token_paramterTransformToString{
-    return ^NSString *(NSDictionary *parameter) {
-        return TokenQueryStringFromParameters(parameter);
-    };
-}
-
 -(NSURLRequestTimeoutBlock)token_setTimeout{
     return ^NSMutableURLRequest *(NSTimeInterval timeout) {
         self.timeoutInterval = timeout;
@@ -196,7 +189,7 @@ NSArray * TokenQueryStringPairsFromKeyAndValue(NSString *key, id value) {
 
 -(NSURLRequestDictionarySetBlock)token_setHTTPParameter{
     return ^NSMutableURLRequest *(NSDictionary *dic) {
-        NSString *httpBodyString = NSMutableURLRequest.token_paramterTransformToString(dic);
+        NSString *httpBodyString = TokenQueryStringFromParameters(dic);
         self.HTTPBody = [httpBodyString dataUsingEncoding:NSUTF8StringEncoding];    
         return self;
     };
@@ -270,95 +263,6 @@ NSArray * TokenQueryStringPairsFromKeyAndValue(NSString *key, id value) {
         return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
     }
     return nil;
-}
-
-@end
-
-@interface NSUserDefaultsStoredObject : NSObject <NSCoding>
-@property(nonatomic ,assign) NSTimeInterval timeLimit;
-@property(nonatomic ,assign) NSTimeInterval storedDate;
--(BOOL)hasExpired;
-@end
-
-@implementation NSUserDefaultsStoredObject
--(id)initWithCoder:(NSCoder *)aDecoder
-{
-    self= [super init];
-    if(self)
-    {
-        self.timeLimit = [aDecoder decodeDoubleForKey:@"timeLimit"];
-        self.storedDate = [aDecoder decodeDoubleForKey:@"storedDate"];
-    }
-    return self;
-}
-
--(void)encodeWithCoder:(NSCoder *)aCoder
-{
-    [aCoder encodeDouble:self.timeLimit forKey:@"timeLimit"];
-    [aCoder encodeDouble:self.storedDate forKey:@"storedDate"];
-}
-
--(BOOL)hasExpired{
-    NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
-    return ((now - self.storedDate) >= self.timeLimit);
-}
-@end
-
-@implementation NSUserDefaults (TokenNetworking)
-
-+(NSString *)token_getStoredKeyWithKey:(NSString *)key{
-    return [NSString stringWithFormat:@"%@-limtit",key];
-}
-
-+(UserDefaultsGetInstanceBlock)token_sharedDefaults{
-    return ^NSUserDefaults *(){
-        return [NSUserDefaults standardUserDefaults];
-    };
-}
-
-+(UserDefaultsGetBlock)token_get{
-    return ^id (NSString *key) {
-        NSUserDefaults *defaults = self.token_sharedDefaults();
-        id obtainedObj  = [defaults objectForKey:key];
-        if (obtainedObj == nil) { return nil;}
-        
-        //检查是否过期
-        NSString *storedObjKey = [NSUserDefaults token_getStoredKeyWithKey:key];
-        NSData *storedObjData = [defaults objectForKey:storedObjKey];
-        if (storedObjData == nil) {
-            return obtainedObj;
-        }
-        NSUserDefaultsStoredObject *storedObj = [NSKeyedUnarchiver unarchiveObjectWithData:storedObjData];
-        if (storedObj == nil) { return obtainedObj;}
-        if ([storedObj hasExpired]) {
-            [defaults removeObjectForKey:key];
-            [defaults removeObjectForKey:storedObjKey];
-            return nil;
-        }
-        return obtainedObj;
-    };
-}
-
-+(UserDefaultsSetBlock)token_set{
-    return ^(NSString *key ,id obj) {
-        NSUserDefaults *defaults = self.token_sharedDefaults();
-        [defaults setObject:obj forKey:key];
-        [defaults synchronize];
-    };
-}
-
-+(UserDefaultsSetWithLimitBlock)token_setWithLimit{
-    return ^(NSString *key ,id obj ,NSTimeInterval limitTime) {
-        NSUserDefaults.token_set(key, obj);
-        if (limitTime > 0) {
-            NSUserDefaultsStoredObject *storedObj = [NSUserDefaultsStoredObject new];
-            storedObj.timeLimit    = limitTime;
-            storedObj.storedDate   = [[NSDate date] timeIntervalSince1970];
-            NSString *storedObjKey = [self token_getStoredKeyWithKey:key];
-            NSData *storedObjData = [NSKeyedArchiver archivedDataWithRootObject:storedObj];
-            NSUserDefaults.token_set(storedObjKey, storedObjData);
-        }
-    };
 }
 
 @end
