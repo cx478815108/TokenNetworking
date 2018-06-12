@@ -207,7 +207,6 @@ didCompleteWithError:(NSError *)error {
         [self lock];
             TokenNetworkingHandler *handle = [[TokenNetworkingHandler alloc] init];
             handle.taskID = task.taskIdentifier;
-            handle.task = task;
             //push
             [self->_handles addObject:handle];
         [self unlock];
