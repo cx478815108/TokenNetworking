@@ -203,8 +203,8 @@ didCompleteWithError:(NSError *)error {
         if (make == nil) return self;
         NSURLRequest *request = make();
         if (request == nil) return self;
-        NSURLSessionTask *task = [self->_session dataTaskWithRequest:request];
         [self lock];
+            NSURLSessionTask *task = [self->_session dataTaskWithRequest:request];
             TokenNetworkingHandler *handle = [[TokenNetworkingHandler alloc] init];
             handle.taskID = task.taskIdentifier;
             //push
