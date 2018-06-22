@@ -17,7 +17,9 @@
 @property(nonatomic ,copy  ) TokenNetFailureParameterBlock    failureBlock;
 @property(nonatomic ,copy  ) TokenNetSuccessJSONBlock         willResponseJSON;
 @property(nonatomic ,copy  ) TokenNetSuccessTextBlock         willResponseText;
-@property(nonatomic ,strong) NSMutableData                    *data;
+@property(nonatomic ,copy  ) TokenNetFailureParameterBlock    willFailure;
+
+@property(nonatomic ,strong) NSMutableData *data;
 @end
 
 @implementation TokenNetworkingHandler
@@ -35,10 +37,11 @@
 @end
 
 @implementation TokenNetworking{
-    dispatch_semaphore_t  _sendSemaphore;
-    NSURLSession         *_session;
-    NSMutableArray       *_handles;
-    pthread_mutex_t       _lock;
+    dispatch_semaphore_t _sendSemaphore;
+    NSURLSession    *_session;
+    NSMutableArray  *_handles;
+    pthread_mutex_t  _lock;
+    
 }
 
 +(NSOperationQueue *)processQueue{
@@ -69,14 +72,13 @@
 {
     self = [super init];
     if (self) {
-        _session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration
-                                                           defaultSessionConfiguration]
-                                                 delegate:self
-                                            delegateQueue:[TokenNetworking processQueue]];
-        _handles       = @[].mutableCopy;
+        _session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]
+                                                     delegate:self
+                                                delegateQueue:[TokenNetworking processQueue]];
+        _handles = @[].mutableCopy;
         _sendSemaphore = dispatch_semaphore_create(1);
         pthread_mutex_init(&_lock, NULL);
-
+        
     }
     return self;
 }
@@ -127,28 +129,32 @@ didCompleteWithError:(NSError *)error {
         }
     [self unlock];
     if (error) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            !handler.failureBlock?:handler.failureBlock(error);
-        });
+        !handler.willFailure?:handler.willFailure(error);
+        if (handler.failureBlock) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                !handler.failureBlock?:handler.failureBlock(error);
+            });
+        }
         return;
     }
-
+        
     NSData *transformedData = handler.data;
-
+    NSError *jsonError;
+    id json = [NSJSONSerialization JSONObjectWithData:transformedData options:(NSJSONReadingAllowFragments) error:&jsonError];
+    !handler.willResponseJSON?:handler.willResponseJSON(task,jsonError,json);
+    
     if (handler.responseJSON) {
-        NSError *error;
-        id json = [NSJSONSerialization JSONObjectWithData:transformedData options:(NSJSONReadingAllowFragments) error:&error];
-        !handler.willResponseJSON?:handler.willResponseJSON(task,error,json);
         dispatch_async(dispatch_get_main_queue(), ^{
-            !handler.responseJSON?:handler.responseJSON(task,error,json);
+            handler.responseJSON(task,error,json);
         });
     }
-
+    
+    NSString *textString = [[NSString alloc] initWithData:transformedData encoding:NSUTF8StringEncoding];
+    !handler.willResponseText?:handler.willResponseText(task,textString);
+    
     if (handler.responseText) {
-        NSString *textString = [[NSString alloc] initWithData:transformedData encoding:NSUTF8StringEncoding];
-        !handler.willResponseText?:handler.willResponseText(task,textString);
         dispatch_async(dispatch_get_main_queue(), ^{
-            !handler.responseText?:handler.responseText(task,textString);
+            handler.responseText(task,textString);
         });
     }
 }
@@ -173,7 +179,7 @@ didCompleteWithError:(NSError *)error {
 
 #pragma mark - chain
 @implementation TokenNetworking(Chain)
--(TokenNetPostBlock)postWithURL{
+-(TokenNetParametersBlock)postWithURL{
     return ^TokenNetworking *(NSString *urlString, NSDictionary *parameters) {
         NSURL *url = [NSURL URLWithString:urlString];
         NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
@@ -187,11 +193,14 @@ didCompleteWithError:(NSError *)error {
     };
 }
 
--(TokenNetURLBlock)getWithURL{
-    return ^TokenNetworking *(NSString *urlString) {
+-(TokenNetParametersBlock)getWithURL{
+    return ^TokenNetworking *(NSString *urlString,NSDictionary *parameters) {
         NSURL *url = [NSURL URLWithString:urlString];
         NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
         request.token_setMethod(@"GET");
+        if (parameters) {
+            request.token_setHTTPParameter(parameters);
+        }
         return self.request(^NSURLRequest *(void) {
             return request;
         });
@@ -268,6 +277,17 @@ didCompleteWithError:(NSError *)error {
         TokenNetworkingHandler *handle = [self->_handles lastObject];
         if (handle) {
             handle.responseText = textBlock;
+        }
+        return self;
+    };
+}
+
+-(TokenWillFailureBlock)willFailure{
+    return ^TokenNetworking *(TokenNetFailureParameterBlock failureBlock) {
+        //get top
+        TokenNetworkingHandler *handle = [self->_handles lastObject];
+        if (handle) {
+            handle.willFailure = failureBlock;
         }
         return self;
     };

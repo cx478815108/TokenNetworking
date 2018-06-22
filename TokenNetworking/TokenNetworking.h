@@ -78,30 +78,34 @@ typedef TokenNetworking *(^TokenNetFailureBlock)(TokenNetFailureParameterBlock f
 
 //send
 typedef TokenNetworking *(^TokenNetURLBlock)(NSString *urlString);
-typedef NSURLRequest *(^TokenRequestMakeBlock)(void);
+typedef NSURLRequest    *(^TokenRequestMakeBlock)(void);
 typedef TokenNetworking *(^TokenSendRequestBlock)(TokenRequestMakeBlock make);
-typedef TokenNetworking *(^TokenNetPostBlock)(NSString *urlString,NSDictionary *parameters);
+typedef TokenNetworking *(^TokenNetParametersBlock)(NSString *urlString,NSDictionary *parameters);
 
 //redirect
-typedef NSURLRequest *(^TokenChainRedirectParameterBlock)(NSURLRequest *request,NSURLResponse *response);
+typedef NSURLRequest    *(^TokenChainRedirectParameterBlock)(NSURLRequest *request,NSURLResponse *response);
 typedef TokenNetworking *(^TokenChainRedirectBlock)(TokenChainRedirectParameterBlock redirectParameter);
 
 //response
 typedef TokenNetworking *(^TokenResponseJSONBlock)(TokenNetSuccessJSONBlock jsonBlock);
 typedef TokenNetworking *(^TokenResponseTextBlock)(TokenNetSuccessTextBlock textBlock);
 
+//willFailure
+typedef TokenNetworking *(^TokenWillFailureBlock)(TokenNetFailureParameterBlock failureBlock);
+
 @interface TokenNetworking : NSObject
 +(instancetype)networking;
 @end
 
 @interface TokenNetworking(Chain)
-@property(nonatomic ,copy ,readonly) TokenNetPostBlock       postWithURL;
-@property(nonatomic ,copy ,readonly) TokenNetURLBlock        getWithURL;
+@property(nonatomic ,copy ,readonly) TokenNetParametersBlock postWithURL;
+@property(nonatomic ,copy ,readonly) TokenNetParametersBlock getWithURL;
 @property(nonatomic ,copy ,readonly) TokenSendRequestBlock   request;
 @property(nonatomic ,copy ,readonly) TokenChainRedirectBlock willRedict;
 @property(nonatomic ,copy ,readonly) TokenResponseJSONBlock  willResponseJSON;
 @property(nonatomic ,copy ,readonly) TokenResponseTextBlock  willResponseText;
 @property(nonatomic ,copy ,readonly) TokenResponseJSONBlock  responseJSON;
 @property(nonatomic ,copy ,readonly) TokenResponseTextBlock  responseText;
+@property(nonatomic ,copy ,readonly) TokenWillFailureBlock   willFailure;
 @property(nonatomic ,copy ,readonly) TokenNetFailureBlock    failure;
 @end
