@@ -11,6 +11,7 @@
 
 @interface TokenNetworkingHandler : NSObject
 @property(nonatomic ,assign) NSInteger taskID;
+@property(nonatomic ,copy  ) TokenRequestMakeBlock            requestMakeBlock;
 @property(nonatomic ,copy  ) TokenChainRedirectParameterBlock redirectBlock;
 @property(nonatomic ,copy  ) TokenNetSuccessJSONBlock         responseJSON;
 @property(nonatomic ,copy  ) TokenNetSuccessTextBlock         responseText;
@@ -18,8 +19,7 @@
 @property(nonatomic ,copy  ) TokenNetSuccessJSONBlock         willResponseJSON;
 @property(nonatomic ,copy  ) TokenNetSuccessTextBlock         willResponseText;
 @property(nonatomic ,copy  ) TokenNetFailureParameterBlock    willFailure;
-
-@property(nonatomic ,strong) NSMutableData *data;
+@property(nonatomic ,strong) NSMutableData                   *data;
 @end
 
 @implementation TokenNetworkingHandler
@@ -83,6 +83,10 @@
     return self;
 }
 
+-(void)runTask{
+    
+}
+
 -(void)lock{
     pthread_mutex_lock(&_lock);
 }
@@ -119,7 +123,7 @@ willPerformHTTPRedirection:(NSHTTPURLResponse *)response
 -(void)URLSession:(NSURLSession *)session
              task:(NSURLSessionTask *)task
 didCompleteWithError:(NSError *)error {
-    dispatch_semaphore_signal(_sendSemaphore);
+    
     [self lock];
         TokenNetworkingHandler *handler = [self getHandleWithTaskID:task.taskIdentifier];
         [_handles removeObject:handler];
@@ -132,20 +136,27 @@ didCompleteWithError:(NSError *)error {
         !handler.willFailure?:handler.willFailure(error);
         if (handler.failureBlock) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                !handler.failureBlock?:handler.failureBlock(error);
+                handler.failureBlock(error);
+                dispatch_semaphore_signal(self->_sendSemaphore);
             });
+        }
+        else {
+            dispatch_semaphore_signal(self->_sendSemaphore);
         }
         return;
     }
-        
+    
     NSData *transformedData = handler.data;
     NSError *jsonError;
     id json = [NSJSONSerialization JSONObjectWithData:transformedData options:(NSJSONReadingAllowFragments) error:&jsonError];
     !handler.willResponseJSON?:handler.willResponseJSON(task,jsonError,json);
-    
+
     if (handler.responseJSON) {
         dispatch_async(dispatch_get_main_queue(), ^{
             handler.responseJSON(task,error,json);
+            if (!handler.willResponseText || !handler.responseText) {
+                dispatch_semaphore_signal(self->_sendSemaphore);
+            }
         });
     }
     
@@ -155,7 +166,15 @@ didCompleteWithError:(NSError *)error {
     if (handler.responseText) {
         dispatch_async(dispatch_get_main_queue(), ^{
             handler.responseText(task,textString);
+            if (!handler.responseJSON) {
+                dispatch_semaphore_signal(self->_sendSemaphore);
+            }
         });
+    }
+    else {
+        if (!handler.responseJSON) {
+            dispatch_semaphore_signal(self->_sendSemaphore);
+        }
     }
 }
 
@@ -210,18 +229,21 @@ didCompleteWithError:(NSError *)error {
 -(TokenSendRequestBlock)request{
     return ^TokenNetworking *(TokenRequestMakeBlock make) {
         if (make == nil) return self;
-        NSURLRequest *request = make();
-        if (request == nil) return self;
         [self lock];
-            NSURLSessionTask *task = [self->_session dataTaskWithRequest:request];
             TokenNetworkingHandler *handle = [[TokenNetworkingHandler alloc] init];
-            handle.taskID = task.taskIdentifier;
+            handle.requestMakeBlock = make;
             //push
             [self->_handles addObject:handle];
         [self unlock];
         dispatch_async([self.class searalQueue], ^{
             dispatch_semaphore_wait(self->_sendSemaphore, DISPATCH_TIME_FOREVER);
-            [task resume];
+            //get top
+            if (handle.requestMakeBlock) {
+                NSURLRequest *request = handle.requestMakeBlock();
+                NSURLSessionTask *task = [self->_session dataTaskWithRequest:request];
+                handle.taskID = task.taskIdentifier;
+                [task resume];
+            }
         });
         return self;
     };
