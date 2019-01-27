@@ -19,7 +19,8 @@
 @property(nonatomic ,copy  ) TokenNetSuccessJSONBlock         willResponseJSON;
 @property(nonatomic ,copy  ) TokenNetSuccessTextBlock         willResponseText;
 @property(nonatomic ,copy  ) TokenNetFailureParameterBlock    willFailure;
-@property(nonatomic ,strong) NSMutableData                   *data;
+
+@property(nonatomic ,strong) NSMutableData *data;
 @end
 
 @implementation TokenNetworkingHandler
@@ -124,57 +125,61 @@ willPerformHTTPRedirection:(NSHTTPURLResponse *)response
              task:(NSURLSessionTask *)task
 didCompleteWithError:(NSError *)error {
     
+    //现在要的结果是 .responseJSON .responseText 的任务执行完毕 才发送下一个请求
+    //所以信号量的释放一定要选择好的时机
+    //加锁，通过taskID取出某个task对应的handle数据结构，从handle取出对应的block执行
     [self lock];
-        TokenNetworkingHandler *handler = [self getHandleWithTaskID:task.taskIdentifier];
-        [_handles removeObject:handler];
-        if (_handles.count == 0) {
-            [_session finishTasksAndInvalidate];
-            _handles = nil;
-        }
+    TokenNetworkingHandler *handler = [self getHandleWithTaskID:task.taskIdentifier];
+    //此次取出handle，已经到了didCompleteWithError回调方法，所以无需继续保存handle数据结构了
+    [_handles removeObject:handler];
+    if (_handles.count == 0) {
+        //最后的任务都被拉出来进行处理，已经没有任务还需要被处理，所以结束任务，释放handles数组
+        [_session finishTasksAndInvalidate];
+        _handles = nil;
+    }
     [self unlock];
     if (error) {
+        // 错误处理 -> 直接增加一个信号量，任务可能成功，也可能失败，在此需要释放信号量，因为不释放的话，下一个请求由于没有信号量消耗永远卡住
+        //willFailure这个Block是可以在其他线程处理的任务块
         !handler.willFailure?:handler.willFailure(error);
         if (handler.failureBlock) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 handler.failureBlock(error);
                 dispatch_semaphore_signal(self->_sendSemaphore);
             });
-        }
-        else {
+        } else {
+            //就算没写失败block，也需要释放信号量
             dispatch_semaphore_signal(self->_sendSemaphore);
         }
-        return;
+        //有错误就需要退出这个方法，不要执行剩余语句，不要删除这个 return ;
+        return ;
     }
-    
-    NSData *transformedData = handler.data;
+    //从handle中取出对应的data，进行解析
+    NSData *data = handler.data;
     NSError *jsonError;
-    id json = [NSJSONSerialization JSONObjectWithData:transformedData options:(NSJSONReadingAllowFragments) error:&jsonError];
+    id json = [NSJSONSerialization JSONObjectWithData:data options:(NSJSONReadingAllowFragments) error:&jsonError];
+    //willResponseJSON代码块可以在其他线程执行
     !handler.willResponseJSON?:handler.willResponseJSON(task,jsonError,json);
-
+    //考虑到数据解析完毕后，有json数据回调块，还有text数据回调块，所以信号量的释放格外重要，需要注意
     if (handler.responseJSON) {
         dispatch_async(dispatch_get_main_queue(), ^{
+            //主线程执行responseJSON代码块
             handler.responseJSON(task,error,json);
-            if (!handler.willResponseText || !handler.responseText) {
-                dispatch_semaphore_signal(self->_sendSemaphore);
-            }
         });
     }
-    
-    NSString *textString = [[NSString alloc] initWithData:transformedData encoding:NSUTF8StringEncoding];
+    //从data转换成字符串
+    NSString *textString = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    //will块代码是可以在其他线程执行的
     !handler.willResponseText?:handler.willResponseText(task,textString);
-    
+    //上面的代码没有释放信号量，下面需要进行释放
     if (handler.responseText) {
         dispatch_async(dispatch_get_main_queue(), ^{
+            //如果有text代码块则执行这一块任务
             handler.responseText(task,textString);
-            if (!handler.responseJSON) {
-                dispatch_semaphore_signal(self->_sendSemaphore);
-            }
-        });
-    }
-    else {
-        if (!handler.responseJSON) {
             dispatch_semaphore_signal(self->_sendSemaphore);
-        }
+        });
+    } else {
+        dispatch_semaphore_signal(self->_sendSemaphore);
     }
 }
 
