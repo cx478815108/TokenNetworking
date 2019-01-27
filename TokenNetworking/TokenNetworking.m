@@ -84,10 +84,6 @@
     return self;
 }
 
--(void)runTask{
-    
-}
-
 -(void)lock{
     pthread_mutex_lock(&_lock);
 }
