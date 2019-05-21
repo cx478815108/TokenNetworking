@@ -5,7 +5,7 @@ Pod::Spec.new do |s|
     s.homepage     = 'https://github.com/cx478815108/TokenNetworking'
     s.license      = 'MIT'
     s.authors      = {'cx478815108' => 'feelings0811@wutnews.net'}
-    s.platform     = :ios, '7.0'
+    s.platform     = :ios, '10.0'
     s.source       = {:git => 'https://github.com/cx478815108/TokenNetworking.git', :tag => 'v1.1'}
     s.source_files = 'TokenNetworking/**/*.{h,m}'
     s.requires_arc = true
