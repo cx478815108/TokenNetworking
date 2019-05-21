@@ -158,7 +158,7 @@ NSArray * TokenQueryStringPairsFromKeyAndValue(NSString *key, id value) {
 
 @implementation NSMutableURLRequest (TokenNetworking)
 
-/// 设置URL
+// 设置URL
 + (NSURLRequestInstanceBlock)token_requestWithURL {
     return ^NSMutableURLRequest *(NSString *url) {
         return [self token_requestWithURLString:url];
@@ -169,7 +169,7 @@ NSArray * TokenQueryStringPairsFromKeyAndValue(NSString *key, id value) {
     return [NSMutableURLRequest requestWithURL:[NSURL URLWithString:string]];
 }
 
-/// 设置timeout
+// 设置timeout
 - (NSURLRequestTimeoutBlock)token_setTimeout {
     return ^NSMutableURLRequest *(NSTimeInterval timeout) {
         self.timeoutInterval = timeout;
@@ -177,7 +177,7 @@ NSArray * TokenQueryStringPairsFromKeyAndValue(NSString *key, id value) {
     };
 }
 
-/// 设置UA
+// 设置UA
 - (NSURLRequestStringSetBlock)token_setUA {
     return ^NSMutableURLRequest *(NSString *value) {
         [self setValue:value forHTTPHeaderField:@"User-Agent"];
@@ -185,7 +185,7 @@ NSArray * TokenQueryStringPairsFromKeyAndValue(NSString *key, id value) {
     };
 }
 
-/// 设置Cache策略
+// 设置Cache策略
 - (NSURLRequestPolicySetBlock)token_setPolicy {
     return ^NSMutableURLRequest *(NSURLRequestCachePolicy policy) {
         self.cachePolicy = policy;
@@ -193,7 +193,7 @@ NSArray * TokenQueryStringPairsFromKeyAndValue(NSString *key, id value) {
     };
 }
 
-/// 设置HTTP请求方法
+// 设置HTTP请求方法
 - (NSURLRequestStringSetBlock)token_setMethod {
     return ^NSMutableURLRequest *(NSString *value) {
         self.HTTPMethod = value;
@@ -201,7 +201,7 @@ NSArray * TokenQueryStringPairsFromKeyAndValue(NSString *key, id value) {
     };
 }
 
-/// 设置是否处理Cookie
+// 设置是否处理Cookie
 - (NSURLRequestBOOLSetBlock)token_handleCookie {
     return ^NSMutableURLRequest *(BOOL value) {
         self.HTTPShouldHandleCookies = value;
@@ -209,7 +209,7 @@ NSArray * TokenQueryStringPairsFromKeyAndValue(NSString *key, id value) {
     };
 }
 
-/// 添加请求头
+// 添加请求头
 - (NSURLRequestDictionarySetBlock)token_addHeaderValues {
     return ^NSMutableURLRequest *(NSDictionary *dic) {
         for (NSString *key in dic.allKeys) {
@@ -219,7 +219,7 @@ NSArray * TokenQueryStringPairsFromKeyAndValue(NSString *key, id value) {
     };
 }
 
-/// 设置请求体
+// 设置请求体
 - (NSURLRequestDictionarySetBlock)token_setHTTPParameter {
     return ^NSMutableURLRequest *(NSDictionary *dic) {
         NSString *httpBodyString = TokenQueryStringFromParameters(dic);
@@ -228,7 +228,7 @@ NSArray * TokenQueryStringPairsFromKeyAndValue(NSString *key, id value) {
     };
 }
 
-/// 设置请求体
+// 设置请求体
 - (NSURLRequestJSONSetBlock)token_setJSONParameter {
     return ^NSMutableURLRequest *(NSDictionary *dic ,NSError *error) {
         if (dic) {
