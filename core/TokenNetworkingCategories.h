@@ -36,15 +36,15 @@ typedef NSString *(^TokenNetworkingPostHTTPParameterBlock)(NSDictionary *paramet
 
 @interface NSMutableURLRequest (TokenNetworking)
 
-@property (nonatomic, copy, readonly, class) NSURLRequestInstanceBlock      token_requestWithURL;
-@property (nonatomic, copy, readonly)        NSURLRequestStringSetBlock     token_setUA;
-@property (nonatomic, copy, readonly)        NSURLRequestPolicySetBlock     token_setPolicy;
-@property (nonatomic, copy, readonly)        NSURLRequestTimeoutBlock       token_setTimeout;
-@property (nonatomic, copy, readonly)        NSURLRequestStringSetBlock     token_setMethod;
-@property (nonatomic, copy, readonly)        NSURLRequestBOOLSetBlock       token_handleCookie;
-@property (nonatomic, copy, readonly)        NSURLRequestDictionarySetBlock token_addHeaderValues;
-@property (nonatomic, copy, readonly)        NSURLRequestDictionarySetBlock token_setHTTPParameter;
-@property (nonatomic, copy, readonly)        NSURLRequestJSONSetBlock       token_setJSONParameter;
+@property (nonatomic, readonly, class) NSURLRequestInstanceBlock     token_requestWithURL;
+@property (nonatomic, copy, readonly) NSURLRequestStringSetBlock     token_setUA;
+@property (nonatomic, copy, readonly) NSURLRequestPolicySetBlock     token_setPolicy;
+@property (nonatomic, copy, readonly) NSURLRequestTimeoutBlock       token_setTimeout;
+@property (nonatomic, copy, readonly) NSURLRequestStringSetBlock     token_setMethod;
+@property (nonatomic, copy, readonly) NSURLRequestBOOLSetBlock       token_handleCookie;
+@property (nonatomic, copy, readonly) NSURLRequestDictionarySetBlock token_addHeaderValues;
+@property (nonatomic, copy, readonly) NSURLRequestDictionarySetBlock token_setHTTPParameter;
+@property (nonatomic, copy, readonly) NSURLRequestJSONSetBlock       token_setJSONParameter;
 
 + (NSMutableURLRequest *)token_requestWithURLString:(NSString *)string;
 

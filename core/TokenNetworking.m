@@ -36,30 +36,30 @@
 @end
 
 @interface TokenNetworking () <NSURLSessionTaskDelegate>
-
+@property(nonatomic, strong) dispatch_semaphore_t sendSemaphore; // 信号量，保证一条链条上每个请求是one by one的
+@property(nonatomic, strong) NSURLSession *session;
+@property(nonatomic, strong) NSMutableArray *handles; // 保存每个请求的相关处理的block
+@property(nonatomic, strong) NSOperationQueue *sessionDelegateQueue;
 @end
 
 @implementation TokenNetworking {
-    // 信号量，保证一条链条上每个请求是one by one的
-    dispatch_semaphore_t _sendSemaphore;
-    NSURLSession *_session;
-    // 保存每个请求的相关处理的block
-    NSMutableArray *_handles;
     // 互斥锁，数组的存取不可以多线程操作，需要用互斥锁锁起来，保证在任一时刻，只能有一个线程访问该对象
     pthread_mutex_t _lock;
 }
 
 // 初始化方法，生成TokenNetworking对象
 + (instancetype)networking {
-    return [[self alloc] init];
+    return [[self alloc] initWithSessionConfiguration:nil delegateQueue:nil];
 }
 
-- (instancetype)init {
+- (instancetype)initWithSessionConfiguration:(NSURLSessionConfiguration *)sessionConfiguration
+                               delegateQueue:(NSOperationQueue *)queue {
     self = [super init];
     if (self) {
-        _session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]
+        _session = [NSURLSession sessionWithConfiguration:sessionConfiguration ? sessionConfiguration : [NSURLSessionConfiguration
+                                                                                                         defaultSessionConfiguration]
                                                  delegate:self
-                                            delegateQueue:[TokenNetworking processQueue]];
+                                            delegateQueue:queue ? queue : [TokenNetworking processQueue]];
         _handles = @[].mutableCopy;
         _sendSemaphore = dispatch_semaphore_create(1);
         pthread_mutex_init(&_lock, NULL);
@@ -109,8 +109,7 @@
 
 #pragma mark - NSURLSessionTaskDelegate
 
-- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task
-willPerformHTTPRedirection:(NSHTTPURLResponse *)response
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response
         newRequest:(NSURLRequest *)request
  completionHandler:(void (^)(NSURLRequest * _Nullable))completionHandler {
     // 加锁，通过taskID取出某个task对应的handls数据结构，从handle取出对应的block执行任务
@@ -118,7 +117,7 @@ willPerformHTTPRedirection:(NSHTTPURLResponse *)response
     TokenNetworkingHandler *handle = [self getHandleWithTaskID:task.taskIdentifier];
     [self unlock];
     if (handle.redirectBlock) {
-        NSURLRequest *newRequest = handle.redirectBlock(request ,response);
+        NSURLRequest *newRequest = handle.redirectBlock(request, response);
         completionHandler(newRequest);
     } else {
         completionHandler(request);
@@ -130,16 +129,22 @@ willPerformHTTPRedirection:(NSHTTPURLResponse *)response
     // 加锁，通过taskID取出某个task对应的handls数据结构
     [self lock];
     TokenNetworkingHandler *handle = [self getHandleWithTaskID:dataTask.taskIdentifier];
-    [self unlock];
     [handle.data appendData:data];
+    [self unlock];
 }
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task
-didCompleteWithError:(NSError *)error {
+   didSendBodyData:(int64_t)bytesSent
+    totalBytesSent:(int64_t)totalBytesSent
+totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend{
+    
+}
+
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
     // .responseJSON .responseText 的任务执行完毕 才可以发送下一个请求
     [self lock];
     TokenNetworkingHandler *handler = [self getHandleWithTaskID:task.taskIdentifier];
-    // 此次取出handle，已经到了didCompleteWithError回调方法，所以无需继续保存handle数据结构
+    // 此次取出handle，已经到了didCompleteWithError 回调方法，所以无需继续保存handle 数据结构
     [_handles removeObject:handler];
     if (_handles.count == 0) {
         // 最后的任务都被拉出来进行处理，已经没有任务还需要被处理，所以结束任务，释放handles数组
@@ -147,49 +152,40 @@ didCompleteWithError:(NSError *)error {
         _handles = nil;
     }
     [self unlock];
+    
     if (error) {
         // 错误处理 -> 直接增加一个信号量，任务可能成功，也可能失败，在此需要释放信号量，因为不释放的话，下一个请求由于没有信号量消耗永远卡住
-        // willFailure这个Block是可以在其他线程处理的任务块
-        !handler.willFailure?:handler.willFailure(error);
-        if (handler.failureBlock) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                handler.failureBlock(error);
-                dispatch_semaphore_signal(self->_sendSemaphore);
-            });
-        } else {
-            // 就算调用方没写失败block，也需要释放信号量
+        // willFailure 这个Block 是可以在其他线程处理的任务块
+        !handler.willFailure ?: handler.willFailure(error);
+        
+        return dispatch_async(dispatch_get_main_queue(), ^{
+            !handler.failureBlock ?: handler.failureBlock(error);
             dispatch_semaphore_signal(self->_sendSemaphore);
-        }
-        // 有错误就需要退出此代理方法执行，不执行剩余语句，不要删除这个 return ;
-        return ;
+        });
     }
-    // 从handle中取出对应的data，进行解析
+    
+    // 从handle 中取出对应的data，进行解析
     NSData *data = handler.data;
     NSError *jsonError;
     id json = [NSJSONSerialization JSONObjectWithData:data options:(NSJSONReadingAllowFragments) error:&jsonError];
-    // willResponseJSON代码块可以在其他线程执行
-    !handler.willResponseJSON?:handler.willResponseJSON(task,jsonError,json);
-    // 考虑到数据解析完毕后，有json数据回调块，还有text数据回调块，所以信号量的释放格外重要，需要注意
-    if (handler.responseJSON) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            // 主线程执行responseJSON代码块
-            handler.responseJSON(task,error,json);
-        });
-    }
-    // 从data转换成字符串
+    // willResponseJSON 代码块可以在其他线程执行
+    !handler.willResponseJSON ?: handler.willResponseJSON(task,jsonError,json);
+    // 考虑到数据解析完毕后，有json 数据回调块，还有text 数据回调块
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // 主线程执行responseJSON 代码块
+        !handler.responseJSON ?: handler.responseJSON(task,error,json);
+    });
+    
+    // 从data 转换成字符串
     NSString *textString = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-    // will块代码是可以在其他线程执行的
-    !handler.willResponseText?:handler.willResponseText(task,textString);
+    // will 块代码是可以在其他线程执行的
+    !handler.willResponseText ?: handler.willResponseText(task,textString);
     // 上面的代码没有释放信号量，下面需要进行释放
-    if (handler.responseText) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            // 如果有text代码块则执行这一块任务
-            handler.responseText(task,textString);
-            dispatch_semaphore_signal(self->_sendSemaphore);
-        });
-    } else {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // 如果有text 代码块则执行这一块任务
+        !handler.responseText ?: handler.responseText(task,textString);
         dispatch_semaphore_signal(self->_sendSemaphore);
-    }
+    });
 }
 
 #pragma mark - getter
@@ -216,6 +212,12 @@ didCompleteWithError:(NSError *)error {
 
 @implementation TokenNetworking(Chain)
 
++(TokenNetworkingCreateBlock)createNetworking{
+    return ^TokenNetworking *(NSURLSessionConfiguration *sessionConfiguration, NSOperationQueue *delegateQueue) {
+        return [[TokenNetworking alloc] initWithSessionConfiguration:sessionConfiguration delegateQueue:delegateQueue];
+    };
+}
+
 - (TokenSendRequestBlock)request {
     return ^TokenNetworking *(TokenRequestMakeBlock make) {
         // make是使用方传入的 我们使用这个make() 去拿到使用方返回给我们的NSURLRequest
@@ -231,7 +233,7 @@ didCompleteWithError:(NSError *)error {
         dispatch_async([self.class searalQueue], ^{
             // 此处使用信号量阻塞 当信号量 > 0的时候才会往下运行 否则一直卡在此处
             dispatch_semaphore_wait(self->_sendSemaphore, DISPATCH_TIME_FOREVER);
-            // 当网络任务执行完毕 在运行了 .responseText 或者.responseJSON后，我们释放一个信号量；再或者直接error也会释放信号量。下面的代码接着运行
+            // 当网络任务执行完毕 再运行了 .responseText 或者.responseJSON后，我们释放一个信号量；再或者直接error也会释放信号量。下面的代码接着运行
             // get top
             if (handle.requestMakeBlock) {
                 // 此处我们执行上面保存的block 拿到request
@@ -276,7 +278,7 @@ didCompleteWithError:(NSError *)error {
     };
 }
 
-- (TokenChainRedirectBlock)willRedict {
+- (TokenChainRedirectBlock)willRedirect {
     return ^TokenNetworking *(TokenChainRedirectParameterBlock redirectParameter) {
         // get top
         TokenNetworkingHandler *handle = [self->_handles lastObject];
@@ -297,6 +299,7 @@ didCompleteWithError:(NSError *)error {
         return self;
     };
 }
+
 - (TokenResponseJSONBlock)responseJSON {
     return ^TokenNetworking *(TokenNetSuccessJSONBlock jsonBlock) {
         // get top
@@ -318,6 +321,7 @@ didCompleteWithError:(NSError *)error {
         return self;
     };
 }
+
 - (TokenResponseTextBlock)responseText {
     return ^TokenNetworking *(TokenNetSuccessTextBlock textBlock) {
         // get top
@@ -339,6 +343,7 @@ didCompleteWithError:(NSError *)error {
         return self;
     };
 }
+
 - (TokenNetFailureBlock)failure {
     return ^TokenNetworking *(TokenNetFailureParameterBlock failure) {
         // get top
