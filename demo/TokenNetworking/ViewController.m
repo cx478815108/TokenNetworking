@@ -73,13 +73,6 @@
     
     TokenNetworking.allTasks(@[a,b], ^{
         NSLog(@"finish");
-    })
-    .getWithURL(@"https://www.baidu.com", nil)
-    .responseText(^(NSURLSessionTask *task, NSString *responsedText) {
-        NSLog(@"%@", responsedText);
-    })
-    .failure(^(NSError *error) {
-        NSLog(@"%@", error);
     });
 
 }
