@@ -11,7 +11,6 @@
 
 @class TokenNetworking;
 
-
 typedef TokenNetworking *(^TokenNetworkingCreateBlock)(NSURLSessionConfiguration *sessionConfiguration, NSOperationQueue *delegateQueue);
 
 //send
@@ -38,17 +37,22 @@ typedef TokenNetworking *(^TokenWillFailureBlock)(TokenNetFailureParameterBlock 
 //失败BLOCK
 typedef TokenNetworking *(^TokenNetFailureBlock)(TokenNetFailureParameterBlock failure);
 
+
+typedef TokenNetworking *(^TokenNetworkingTasksBlock)(NSArray <TokenNetworking *> *tasks, dispatch_block_t finish);
+
 @interface TokenNetworking : NSObject
 
 - (instancetype)init NS_UNAVAILABLE;
 
-//初始化方法
-+ (instancetype)networking;
+@property (nonatomic, readonly, class) TokenNetworking *networking;
+@property (nonatomic, readonly, class) TokenNetworkingCreateBlock createNetworking;
+@property (nonatomic, readonly, class) TokenNetworkingTasksBlock allTasks;
+
 @end
 
 @interface TokenNetworking(Chain)
-
-@property (nonatomic, readonly, class) TokenNetworkingCreateBlock createNetworking;
+@property (nonatomic, readonly) TokenNetworking *networking;
+@property (nonatomic, readonly) TokenNetworkingCreateBlock createNetworking;
 
 //链式调用的基础
 @property (nonatomic, copy, readonly) TokenNetParametersBlock getWithURL;

@@ -87,14 +87,14 @@
 		70DE37AD22B7470C0039C124 /* core */ = {
 			isa = PBXGroup;
 			children = (
-				70DE37AE22B7470C0039C124 /* TokenNetworkingCategories.m */,
-				70DE37AF22B7470C0039C124 /* TokenNetworking.m */,
-				70DE37B022B7470C0039C124 /* TokenNetworkingAssistant.m */,
-				70DE37B122B7470C0039C124 /* TokenHTTPBodyStream.m */,
-				70DE37B222B7470C0039C124 /* TokenNetworkingCategories.h */,
-				70DE37B322B7470C0039C124 /* TokenNetworking.h */,
 				70DE37B422B7470C0039C124 /* TokenHTTPBodyStream.h */,
+				70DE37B122B7470C0039C124 /* TokenHTTPBodyStream.m */,
+				70DE37B322B7470C0039C124 /* TokenNetworking.h */,
+				70DE37AF22B7470C0039C124 /* TokenNetworking.m */,
 				70DE37B522B7470C0039C124 /* TokenNetworkingAssistant.h */,
+				70DE37B022B7470C0039C124 /* TokenNetworkingAssistant.m */,
+				70DE37B222B7470C0039C124 /* TokenNetworkingCategories.h */,
+				70DE37AE22B7470C0039C124 /* TokenNetworkingCategories.m */,
 			);
 			name = core;
 			path = ../core;

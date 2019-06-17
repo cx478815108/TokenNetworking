@@ -9,6 +9,13 @@
 #import "TokenNetworking.h"
 #import <pthread.h>
 
+
+static NSString* TokenNetworkingIdentifierAlloc(){
+    static NSInteger numId = 0;
+    numId += 1;
+    return [NSString stringWithFormat:@"TokenNetworkingId%@",@(numId)];
+}
+
 @interface TokenNetworkingHandler : NSObject
 
 @property (nonatomic, assign) NSInteger                        taskID;
@@ -35,7 +42,17 @@
 }
 @end
 
+@interface TokenNetworkingTask : NSObject
+@property (nonatomic, assign) NSInteger concurrentTaskCount;
+@property (nonatomic, copy  ) dispatch_block_t finish;
+@end
+
+@implementation TokenNetworkingTask
+@end
+
+
 @interface TokenNetworking () <NSURLSessionTaskDelegate>
+@property(nonatomic, copy  ) NSString *identifier;
 @property(nonatomic, strong) dispatch_semaphore_t sendSemaphore; // 信号量，保证一条链条上每个请求是one by one的
 @property(nonatomic, strong) NSURLSession *session;
 @property(nonatomic, strong) NSMutableArray *handles; // 保存每个请求的相关处理的block
@@ -52,10 +69,17 @@
     return [[self alloc] initWithSessionConfiguration:nil delegateQueue:nil];
 }
 
++(TokenNetworkingCreateBlock)createNetworking{
+    return ^TokenNetworking *(NSURLSessionConfiguration *sessionConfiguration, NSOperationQueue *delegateQueue) {
+        return [[TokenNetworking alloc] initWithSessionConfiguration:sessionConfiguration delegateQueue:delegateQueue];
+    };
+}
+
 - (instancetype)initWithSessionConfiguration:(NSURLSessionConfiguration *)sessionConfiguration
                                delegateQueue:(NSOperationQueue *)queue {
     self = [super init];
     if (self) {
+        _identifier = TokenNetworkingIdentifierAlloc();
         _session = [NSURLSession sessionWithConfiguration:sessionConfiguration ? sessionConfiguration : [NSURLSessionConfiguration
                                                                                                          defaultSessionConfiguration]
                                                  delegate:self
@@ -82,6 +106,24 @@
         processQueue.maxConcurrentOperationCount = defaultNumber * 2;
     });
     return processQueue;
+}
+
++ (dispatch_group_t)dispatchGroup{
+    static dispatch_group_t group;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        group = dispatch_group_create();
+    });
+    return group;
+}
+
++ (NSMutableDictionary *)taskCallBacks{
+    static NSMutableDictionary *cache;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        cache = @{}.mutableCopy;
+    });
+    return cache;
 }
 
 /**
@@ -146,21 +188,46 @@ totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend{
     TokenNetworkingHandler *handler = [self getHandleWithTaskID:task.taskIdentifier];
     // 此次取出handle，已经到了didCompleteWithError 回调方法，所以无需继续保存handle 数据结构
     [_handles removeObject:handler];
+    
+    BOOL chainSerialTaskCountFinish = NO;
     if (_handles.count == 0) {
         // 最后的任务都被拉出来进行处理，已经没有任务还需要被处理，所以结束任务，释放handles数组
         [_session finishTasksAndInvalidate];
         _handles = nil;
+        chainSerialTaskCountFinish = YES;
     }
     [self unlock];
+    
+    
+    dispatch_group_t group    = self.class.dispatchGroup;
+    
+    dispatch_block_t allTaskFinish = ^(){
+        NSString *identifier = self.identifier;
+        TokenNetworkingTask *networkingTask = [[TokenNetworking taskCallBacks] objectForKey:identifier];
+        
+        if (chainSerialTaskCountFinish) {
+            networkingTask.concurrentTaskCount -= 1;
+        }
+        
+        if (networkingTask && networkingTask.concurrentTaskCount == 0) {
+            dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+                networkingTask.finish();
+                [[TokenNetworking taskCallBacks] removeObjectForKey:identifier];
+            });
+        };
+    };
     
     if (error) {
         // 错误处理 -> 直接增加一个信号量，任务可能成功，也可能失败，在此需要释放信号量，因为不释放的话，下一个请求由于没有信号量消耗永远卡住
         // willFailure 这个Block 是可以在其他线程处理的任务块
         !handler.willFailure ?: handler.willFailure(error);
         
+        
         return dispatch_async(dispatch_get_main_queue(), ^{
             !handler.failureBlock ?: handler.failureBlock(error);
             dispatch_semaphore_signal(self->_sendSemaphore);
+            dispatch_group_leave(self.class.dispatchGroup);
+            allTaskFinish();
         });
     }
     
@@ -185,6 +252,8 @@ totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend{
         // 如果有text 代码块则执行这一块任务
         !handler.responseText ?: handler.responseText(task,textString);
         dispatch_semaphore_signal(self->_sendSemaphore);
+        dispatch_group_leave(self.class.dispatchGroup);
+        allTaskFinish();
     });
 }
 
@@ -206,13 +275,38 @@ totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend{
     pthread_mutex_destroy(&_lock);
 }
 
++(TokenNetworkingTasksBlock)allTasks{
+    
+    return ^TokenNetworking *(NSArray <TokenNetworking *> *tasks, dispatch_block_t finish){
+        if (!tasks.count || !finish) {
+            return TokenNetworking.networking;
+        }
+        
+        NSString *identifier = tasks[0].identifier;
+        for (TokenNetworking *networking in tasks) {
+            networking.identifier = identifier;
+        }
+        
+        TokenNetworkingTask *task = [[TokenNetworkingTask alloc] init];
+        task.concurrentTaskCount  = tasks.count;
+        task.finish               = finish;
+        [[TokenNetworking taskCallBacks] setObject:task forKey:identifier];
+        
+        return TokenNetworking.networking;
+    };
+}
+
 @end
 
 #pragma mark - chain 链式调用的基础
 
 @implementation TokenNetworking(Chain)
 
-+(TokenNetworkingCreateBlock)createNetworking{
+- (instancetype)networking {
+    return [[TokenNetworking alloc] initWithSessionConfiguration:nil delegateQueue:nil];
+}
+
+- (TokenNetworkingCreateBlock)createNetworking{
     return ^TokenNetworking *(NSURLSessionConfiguration *sessionConfiguration, NSOperationQueue *delegateQueue) {
         return [[TokenNetworking alloc] initWithSessionConfiguration:sessionConfiguration delegateQueue:delegateQueue];
     };
@@ -227,6 +321,10 @@ totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend{
         TokenNetworkingHandler *handle = [[TokenNetworkingHandler alloc] init];
         // 将make 保存在handle 里面
         handle.requestMakeBlock = make;
+        
+        if (make) {
+            dispatch_group_enter(self.class.dispatchGroup);
+        }
         // handle加入handles数组
         [self->_handles addObject:handle];
         [self unlock];
