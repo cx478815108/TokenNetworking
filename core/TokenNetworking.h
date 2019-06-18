@@ -7,63 +7,58 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "TokenNetworkingCategories.h"
+#import "TokenHTTPBodyStream.h"
+#import "TokenNetworkingAssistant.h"
+
+NS_ASSUME_NONNULL_BEGIN
 
 @class TokenNetworking;
+@class TokenNetMicroTask;
 
-typedef TokenNetworking *(^TokenNetworkingCreateBlock)(NSURLSessionConfiguration *sessionConfiguration, NSOperationQueue *delegateQueue);
+// redirect
+typedef NSURLRequest    *_Nonnull(^TokenChainRedirectParameterBlock)(NSURLRequest *request, NSURLResponse *response);
+typedef TokenNetMicroTask *_Nonnull(^TokenChainRedirectBlock)(TokenChainRedirectParameterBlock redirectParameter);
 
-//send
-typedef NSURLRequest    *(^TokenRequestMakeBlock)(void);
-typedef TokenNetworking *(^TokenSendRequestBlock)(TokenRequestMakeBlock make);
-typedef TokenNetworking *(^TokenNetParametersBlock)(NSString *urlString, NSDictionary *parameters);
-
-//redirect
-typedef NSURLRequest    *(^TokenChainRedirectParameterBlock)(NSURLRequest *request, NSURLResponse *response);
-typedef TokenNetworking *(^TokenChainRedirectBlock)(TokenChainRedirectParameterBlock redirectParameter);
-
-//JSON TEXT FAILURE参数BLOCK
+// JSON TEXT FAILURE参数BLOCK
 typedef void(^TokenNetSuccessJSONBlock)(NSURLSessionTask *task, NSError *jsonError, id responsedObj);
 typedef void(^TokenNetSuccessTextBlock)(NSURLSessionTask *task, NSString *responsedText);
+typedef void(^TokenNetSuccessDataBlock)(NSURLSessionTask *task, NSData *responseData);
 typedef void(^TokenNetFailureParameterBlock)(NSError *error);
 
-//response
-typedef TokenNetworking *(^TokenResponseJSONBlock)(TokenNetSuccessJSONBlock jsonBlock);
-typedef TokenNetworking *(^TokenResponseTextBlock)(TokenNetSuccessTextBlock textBlock);
+// response
+typedef TokenNetMicroTask *_Nonnull(^TokenResponseDataBlock)(TokenNetSuccessDataBlock jsonBlock);
+typedef TokenNetMicroTask *_Nonnull(^TokenResponseJSONBlock)(TokenNetSuccessJSONBlock jsonBlock);
+typedef TokenNetMicroTask *_Nonnull(^TokenResponseTextBlock)(TokenNetSuccessTextBlock textBlock);
+typedef TokenNetMicroTask *_Nonnull(^TokenNetFailureBlock)(TokenNetFailureParameterBlock failure);
 
-//willFailure
-typedef TokenNetworking *(^TokenWillFailureBlock)(TokenNetFailureParameterBlock failureBlock);
+typedef TokenNetworking *_Nullable(^TokenNetworkingTasksBlock)(NSArray <TokenNetMicroTask *> *tasks, dispatch_block_t finish);
+typedef TokenNetworking *_Nonnull(^TokenNetworkingCreateBlock)(NSURLSessionConfiguration *sessionConfiguration, NSOperationQueue *delegateQueue);
 
-//失败BLOCK
-typedef TokenNetworking *(^TokenNetFailureBlock)(TokenNetFailureParameterBlock failure);
+// send
+typedef NSURLRequest    *_Nonnull(^TokenRequestMakeBlock)(void);
+typedef TokenNetMicroTask *_Nonnull(^TokenSendRequestBlock)(TokenRequestMakeBlock make);
+typedef TokenNetMicroTask *_Nonnull(^TokenNetRequestBlock)(NSURLRequest *request);
+typedef TokenNetMicroTask *_Nonnull(^TokenNetParametersBlock)(NSString *urlString, NSDictionary *parameters);
 
-
-typedef TokenNetworking *(^TokenNetworkingTasksBlock)(NSArray <TokenNetworking *> *tasks, dispatch_block_t finish);
+@interface TokenNetMicroTask : NSObject
+@property (nonatomic, copy, readonly) TokenChainRedirectBlock redirect;
+@property (nonatomic, copy, readonly) TokenResponseDataBlock  responseData;
+@property (nonatomic, copy, readonly) TokenResponseTextBlock  responseText;
+@property (nonatomic, copy, readonly) TokenResponseJSONBlock  responseJSON;
+@property (nonatomic, copy, readonly) TokenNetFailureBlock    failure;
+@property (nonatomic, weak, readonly) TokenNetworking *next;
+@end
 
 @interface TokenNetworking : NSObject
-
-- (instancetype)init NS_UNAVAILABLE;
-
-@property (nonatomic, readonly, class) TokenNetworking *networking;
 @property (nonatomic, readonly, class) TokenNetworkingCreateBlock createNetworking;
+@property (nonatomic, readonly, class) TokenNetworking *networking;
 @property (nonatomic, readonly, class) TokenNetworkingTasksBlock allTasks;
 
-@end
-
-@interface TokenNetworking(Chain)
-@property (nonatomic, readonly) TokenNetworking *networking;
-@property (nonatomic, readonly) TokenNetworkingCreateBlock createNetworking;
-
-//链式调用的基础
+@property (nonatomic, copy, readonly) TokenSendRequestBlock   makeRequest;
+@property (nonatomic, copy, readonly) TokenNetRequestBlock    requestWith;
 @property (nonatomic, copy, readonly) TokenNetParametersBlock getWithURL;
 @property (nonatomic, copy, readonly) TokenNetParametersBlock postWithURL;
-@property (nonatomic, copy, readonly) TokenSendRequestBlock   request;
-@property (nonatomic, copy, readonly) TokenChainRedirectBlock willRedirect;
-@property (nonatomic, copy, readonly) TokenResponseJSONBlock  willResponseJSON;
-@property (nonatomic, copy, readonly) TokenResponseTextBlock  willResponseText;
-@property (nonatomic, copy, readonly) TokenResponseJSONBlock  responseJSON;
-@property (nonatomic, copy, readonly) TokenResponseTextBlock  responseText;
-@property (nonatomic, copy, readonly) TokenWillFailureBlock   willFailure;
-@property (nonatomic, copy, readonly) TokenNetFailureBlock    failure;
-
+- (instancetype)init NS_UNAVAILABLE;
 @end
+
+NS_ASSUME_NONNULL_END

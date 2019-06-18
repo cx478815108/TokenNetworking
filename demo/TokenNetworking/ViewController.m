@@ -46,35 +46,66 @@
 //    NSURLSessionUploadTask *task = [_session uploadTaskWithStreamedRequest:request];
 //    [task resume];
     
-    TokenNetworking *a = TokenNetworking.networking
-    .getWithURL(@"https://www.baidu.com", nil)
-    .responseText(^(NSURLSessionTask *task, NSString *responsedText) {
-        NSLog(@"%@", responsedText);
+    NSURL *url = [NSURL URLWithString:@"https://www.baidu.com"];
+    NSURLRequest *request = [NSURLRequest requestWithURL:url];
+    
+    TokenNetMicroTask *taskA = TokenNetworking.networking
+    .requestWith(request)
+    .failure(^(NSError * _Nonnull error){
+        NSLog(@"--> task A error");
     })
-    .failure(^(NSError *error) {
-        NSLog(@"%@", error);
-    }).getWithURL(@"https://raw.githubusercontent.com/cx478815108/HybridDocument/master/docs/nav.md", nil)
-    .responseText(^(NSURLSessionTask *task, NSString *responsedText) {
-        NSLog(@"%@", responsedText);
-    })
-    .failure(^(NSError *error) {
-        NSLog(@"%@", error);
+    .next
+    .requestWith(request)
+    .failure(^(NSError * _Nonnull error){
+        NSLog(@"--> task A2 error");
     });
     
-    TokenNetworking *b = TokenNetworking.networking
-    .getWithURL(@"https://raw.githubusercontent.com/cx478815108/HybridDocument/master/docs/storage.md", nil)
-    .responseText(^(NSURLSessionTask *task, NSString *responsedText) {
-        NSLog(@"%@", responsedText);
+    TokenNetMicroTask *taskB = TokenNetworking.networking
+    .requestWith(request)
+    .failure(^(NSError * _Nonnull error){
+        NSLog(@"--> task B error");
     })
-    .failure(^(NSError *error) {
-        NSLog(@"%@", error);
+    .next
+    .requestWith(request)
+    .failure(^(NSError * _Nonnull error){
+        NSLog(@"--> task B2 error");
+    })
+    .next
+    .requestWith(request)
+    .failure(^(NSError * _Nonnull error){
+        NSLog(@"--> task B3 error");
     });
     
-    
-    TokenNetworking.allTasks(@[a,b], ^{
-        NSLog(@"finish");
+    TokenNetMicroTask *taskC = TokenNetworking.allTasks(@[taskA, taskB], ^{
+        NSLog(@"--> AB 完成");
+    })
+    .requestWith(request)
+    .failure(^(NSError * _Nonnull error){
+        NSLog(@"--> task C error");
     });
-
+    
+    TokenNetMicroTask *taskD = TokenNetworking.networking
+    .requestWith(request)
+    .failure(^(NSError * _Nonnull error){
+        NSLog(@"--> task d error");
+    })
+    .next
+    .requestWith(request)
+    .failure(^(NSError * _Nonnull error){
+        NSLog(@"--> task d2 error");
+    });
+    
+    TokenNetworking.allTasks(@[taskC, taskD], ^{
+        NSLog(@"--> fuck all");
+    })
+    .makeRequest(^NSURLRequest * _Nonnull{
+        NSLog(@"--> make request");
+        NSURL *url = [NSURL URLWithString:@"https://www.baidu.com"];
+        return [NSURLRequest requestWithURL:url];
+    })
+    .failure(^(NSError * _Nonnull error){
+        NSLog(@"--> task eee error");
+    });
 }
 
 -(void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event{

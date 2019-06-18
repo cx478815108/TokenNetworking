@@ -7,95 +7,8 @@
 //
 
 #import "TokenNetworking.h"
-#import <pthread.h>
 
-
-static NSString* TokenNetworkingIdentifierAlloc(){
-    static NSInteger numId = 0;
-    numId += 1;
-    return [NSString stringWithFormat:@"TokenNetworkingId%@",@(numId)];
-}
-
-@interface TokenNetworkingHandler : NSObject
-
-@property (nonatomic, assign) NSInteger                        taskID;
-@property (nonatomic, copy  ) TokenRequestMakeBlock            requestMakeBlock;
-@property (nonatomic, copy  ) TokenChainRedirectParameterBlock redirectBlock;
-@property (nonatomic, copy  ) TokenNetSuccessJSONBlock         willResponseJSON;
-@property (nonatomic, copy  ) TokenNetSuccessTextBlock         willResponseText;
-@property (nonatomic, copy  ) TokenNetFailureParameterBlock    willFailure;
-@property (nonatomic, copy  ) TokenNetSuccessJSONBlock         responseJSON;
-@property (nonatomic, copy  ) TokenNetSuccessTextBlock         responseText;
-@property (nonatomic, copy  ) TokenNetFailureParameterBlock    failureBlock;
-@property (nonatomic, strong) NSMutableData                    *data;
-
-@end
-
-@implementation TokenNetworkingHandler
-
-- (instancetype)init {
-    self = [super init];
-    if (self) {
-        self.data = [NSMutableData data];
-    }
-    return self;
-}
-@end
-
-@interface TokenNetworkingTask : NSObject
-@property (nonatomic, assign) NSInteger concurrentTaskCount;
-@property (nonatomic, copy  ) dispatch_block_t finish;
-@end
-
-@implementation TokenNetworkingTask
-@end
-
-
-@interface TokenNetworking () <NSURLSessionTaskDelegate>
-@property(nonatomic, copy  ) NSString *identifier;
-@property(nonatomic, strong) dispatch_semaphore_t sendSemaphore; // 信号量，保证一条链条上每个请求是one by one的
-@property(nonatomic, strong) NSURLSession *session;
-@property(nonatomic, strong) NSMutableArray *handles; // 保存每个请求的相关处理的block
-@property(nonatomic, strong) NSOperationQueue *sessionDelegateQueue;
-@end
-
-@implementation TokenNetworking {
-    // 互斥锁，数组的存取不可以多线程操作，需要用互斥锁锁起来，保证在任一时刻，只能有一个线程访问该对象
-    pthread_mutex_t _lock;
-}
-
-// 初始化方法，生成TokenNetworking对象
-+ (instancetype)networking {
-    return [[self alloc] initWithSessionConfiguration:nil delegateQueue:nil];
-}
-
-+(TokenNetworkingCreateBlock)createNetworking{
-    return ^TokenNetworking *(NSURLSessionConfiguration *sessionConfiguration, NSOperationQueue *delegateQueue) {
-        return [[TokenNetworking alloc] initWithSessionConfiguration:sessionConfiguration delegateQueue:delegateQueue];
-    };
-}
-
-- (instancetype)initWithSessionConfiguration:(NSURLSessionConfiguration *)sessionConfiguration
-                               delegateQueue:(NSOperationQueue *)queue {
-    self = [super init];
-    if (self) {
-        _identifier = TokenNetworkingIdentifierAlloc();
-        _session = [NSURLSession sessionWithConfiguration:sessionConfiguration ? sessionConfiguration : [NSURLSessionConfiguration
-                                                                                                         defaultSessionConfiguration]
-                                                 delegate:self
-                                            delegateQueue:queue ? queue : [TokenNetworking processQueue]];
-        _handles = @[].mutableCopy;
-        _sendSemaphore = dispatch_semaphore_create(1);
-        pthread_mutex_init(&_lock, NULL);
-    }
-    return self;
-}
-
-/**
- *  根据设备活跃核心数获取到最大并发数合适的操作队列
- @return 操作队列
- */
-+ (NSOperationQueue *)processQueue {
+static NSOperationQueue *TokenNetSessionDelegateQueue(){
     static dispatch_once_t onceToken;
     static NSOperationQueue *processQueue;
     dispatch_once(&onceToken, ^{
@@ -108,349 +21,336 @@ static NSString* TokenNetworkingIdentifierAlloc(){
     return processQueue;
 }
 
-+ (dispatch_group_t)dispatchGroup{
-    static dispatch_group_t group;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        group = dispatch_group_create();
+@interface TokenNetMicroTask() <NSURLSessionDataDelegate>
+@property (nonatomic, strong) NSMutableData *data;
+@property (nonatomic, strong) NSURLSessionDataTask *dataTask;
+@property (nonatomic, weak  ) TokenNetworking *networking;
+@property (nonatomic, weak  ) dispatch_group_t taskGroup;
+
+@property (nonatomic, copy) TokenChainRedirectParameterBlock redirectAction;
+@property (nonatomic, copy) TokenNetSuccessDataBlock  responseDataAction;
+@property (nonatomic, copy) TokenNetSuccessTextBlock  responseTextAction;
+@property (nonatomic, copy) TokenNetSuccessJSONBlock  responseJSONAction;
+@property (nonatomic, copy) TokenNetFailureParameterBlock failureAction;
+@end
+
+@interface TokenNetworking() <NSURLSessionDataDelegate>
+@property (nonatomic ,strong) NSMutableArray <TokenNetMicroTask *> *microTasks;
+@property (nonatomic, strong) NSURLSession *session;
+@property (nonatomic, strong) dispatch_semaphore_t operationLock;
+@property (nonatomic, strong) dispatch_semaphore_t taskSemaphore;
+@property (nonatomic, strong) dispatch_queue_t processQueue;
+@end
+
+@implementation TokenNetworking
+
++ (TokenNetworking *)networking{
+    return [[self alloc] init];
+}
+
++ (TokenNetworkingCreateBlock)createNetworking{
+    return ^ TokenNetworking *(NSURLSessionConfiguration *sessionConfiguration, NSOperationQueue *delegateQueue){
+        return [[TokenNetworking alloc] initWithConfiguration:sessionConfiguration delegateQueue:delegateQueue];
+    };
+}
+
+- (instancetype)init
+{
+    if (self = [super init]) {
+        _session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]
+                                                 delegate:self
+                                            delegateQueue:TokenNetSessionDelegateQueue()];
+        [self prepare];
+    }
+    return self;
+}
+
+- (instancetype)initWithConfiguration:(NSURLSessionConfiguration *)configuration delegateQueue:(NSOperationQueue *)delegateQueue{
+    if (self = [super init]) {
+        _session = [NSURLSession sessionWithConfiguration:configuration delegate:self delegateQueue:delegateQueue];
+        [self prepare];
+    }
+    return self;
+}
+
+#pragma mark - action
+-(void)prepare{
+    _operationLock = dispatch_semaphore_create(1);
+    _taskSemaphore = dispatch_semaphore_create(1);
+    _processQueue  = dispatch_queue_create("com.tokennetworking.microtaskqueue", NULL);
+    _microTasks    = @[].mutableCopy;
+}
+
+- (void)lock{
+    dispatch_semaphore_wait(_operationLock, DISPATCH_TIME_FOREVER);
+}
+
+- (void)unlock{
+    dispatch_semaphore_signal(_operationLock);
+}
+
+- (TokenNetMicroTask *)getMicroTaskWithTaskID:(NSUInteger)taskID {
+    [self lock];
+    TokenNetMicroTask *targetTask = nil;
+    for (TokenNetMicroTask *microTask in _microTasks) {
+        if (microTask.dataTask.taskIdentifier == taskID) {
+            targetTask = microTask;
+            break ;
+        }
+    }
+    [self unlock];
+    return targetTask;
+}
+
+- (TokenNetworking *)addMicroTask:(TokenNetMicroTask *)task{
+    [self lock];
+    [self.microTasks addObject:task];
+    [self unlock];
+    dispatch_async(_processQueue, ^{
+        dispatch_semaphore_wait(self.taskSemaphore, DISPATCH_TIME_FOREVER);
+        [task.dataTask resume];
     });
-    return group;
+    return self;
 }
 
-+ (NSMutableDictionary *)taskCallBacks{
-    static NSMutableDictionary *cache;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        cache = @{}.mutableCopy;
-    });
-    return cache;
+- (void)removeMicroTask:(TokenNetMicroTask *)task{
+    dispatch_semaphore_signal(_taskSemaphore);
+    [self lock];
+    [self.microTasks removeObject:task];
+    
+    // 没有任务，需要通知
+    if (self.microTasks.count == 0) {
+        !task.taskGroup ?: dispatch_group_leave(task.taskGroup);
+    }
+    
+    [self unlock];
 }
 
-/**
- *  串行队列 放入的任务是执行task
- */
-+ (dispatch_queue_t)searalQueue {
-    // 需要把任务派发到串行队列上，并且保证任务有序的一个一个的从中拉出来执行
-    static dispatch_queue_t obj;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        obj = dispatch_queue_create("com.tokenNetworking.queue", DISPATCH_QUEUE_SERIAL);
-    });
-    return obj;
-}
-
-#pragma mark - 互斥锁
-
-- (void)lock {
-    pthread_mutex_lock(&_lock);
-}
-
-- (void)unlock {
-    pthread_mutex_unlock(&_lock);
+- (void)queryFinishTasks{
+    [self lock];
+    if (self.microTasks.count == 0){
+        [self.session finishTasksAndInvalidate];
+    }
+    [self unlock];
 }
 
 #pragma mark - NSURLSessionTaskDelegate
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response
         newRequest:(NSURLRequest *)request
- completionHandler:(void (^)(NSURLRequest * _Nullable))completionHandler {
-    // 加锁，通过taskID取出某个task对应的handls数据结构，从handle取出对应的block执行任务
-    [self lock];
-    TokenNetworkingHandler *handle = [self getHandleWithTaskID:task.taskIdentifier];
-    [self unlock];
-    if (handle.redirectBlock) {
-        NSURLRequest *newRequest = handle.redirectBlock(request, response);
-        completionHandler(newRequest);
-    } else {
-        completionHandler(request);
-    }
+ completionHandler:(void (^)(NSURLRequest * _Nullable))completionHandler{
+    TokenNetMicroTask *microTask = [self getMicroTaskWithTaskID:task.taskIdentifier];
+    [microTask URLSession:session task:task willPerformHTTPRedirection:response newRequest:request completionHandler:completionHandler];
 }
 
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask
     didReceiveData:(NSData *)data {
-    // 加锁，通过taskID取出某个task对应的handls数据结构
-    [self lock];
-    TokenNetworkingHandler *handle = [self getHandleWithTaskID:dataTask.taskIdentifier];
-    [handle.data appendData:data];
-    [self unlock];
-}
-
-- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task
-   didSendBodyData:(int64_t)bytesSent
-    totalBytesSent:(int64_t)totalBytesSent
-totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend{
-    
+    TokenNetMicroTask *microTask = [self getMicroTaskWithTaskID:dataTask.taskIdentifier];
+    [microTask URLSession:session dataTask:dataTask didReceiveData:data];
 }
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
-    // .responseJSON .responseText 的任务执行完毕 才可以发送下一个请求
-    [self lock];
-    TokenNetworkingHandler *handler = [self getHandleWithTaskID:task.taskIdentifier];
-    // 此次取出handle，已经到了didCompleteWithError 回调方法，所以无需继续保存handle 数据结构
-    [_handles removeObject:handler];
-    
-    BOOL chainSerialTaskCountFinish = NO;
-    if (_handles.count == 0) {
-        // 最后的任务都被拉出来进行处理，已经没有任务还需要被处理，所以结束任务，释放handles数组
-        [_session finishTasksAndInvalidate];
-        _handles = nil;
-        chainSerialTaskCountFinish = YES;
-    }
-    [self unlock];
-    
-    
-    dispatch_group_t group    = self.class.dispatchGroup;
-    
-    dispatch_block_t allTaskFinish = ^(){
-        NSString *identifier = self.identifier;
-        TokenNetworkingTask *networkingTask = [[TokenNetworking taskCallBacks] objectForKey:identifier];
-        
-        if (chainSerialTaskCountFinish) {
-            networkingTask.concurrentTaskCount -= 1;
-        }
-        
-        if (networkingTask && networkingTask.concurrentTaskCount == 0) {
-            dispatch_group_notify(group, dispatch_get_main_queue(), ^{
-                networkingTask.finish();
-                [[TokenNetworking taskCallBacks] removeObjectForKey:identifier];
-            });
-        };
-    };
-    
-    if (error) {
-        // 错误处理 -> 直接增加一个信号量，任务可能成功，也可能失败，在此需要释放信号量，因为不释放的话，下一个请求由于没有信号量消耗永远卡住
-        // willFailure 这个Block 是可以在其他线程处理的任务块
-        !handler.willFailure ?: handler.willFailure(error);
-        
-        
-        return dispatch_async(dispatch_get_main_queue(), ^{
-            !handler.failureBlock ?: handler.failureBlock(error);
-            dispatch_semaphore_signal(self->_sendSemaphore);
-            dispatch_group_leave(self.class.dispatchGroup);
-            allTaskFinish();
-        });
-    }
-    
-    // 从handle 中取出对应的data，进行解析
-    NSData *data = handler.data;
-    NSError *jsonError;
-    id json = [NSJSONSerialization JSONObjectWithData:data options:(NSJSONReadingAllowFragments) error:&jsonError];
-    // willResponseJSON 代码块可以在其他线程执行
-    !handler.willResponseJSON ?: handler.willResponseJSON(task,jsonError,json);
-    // 考虑到数据解析完毕后，有json 数据回调块，还有text 数据回调块
-    dispatch_async(dispatch_get_main_queue(), ^{
-        // 主线程执行responseJSON 代码块
-        !handler.responseJSON ?: handler.responseJSON(task,error,json);
-    });
-    
-    // 从data 转换成字符串
-    NSString *textString = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-    // will 块代码是可以在其他线程执行的
-    !handler.willResponseText ?: handler.willResponseText(task,textString);
-    // 上面的代码没有释放信号量，下面需要进行释放
-    dispatch_async(dispatch_get_main_queue(), ^{
-        // 如果有text 代码块则执行这一块任务
-        !handler.responseText ?: handler.responseText(task,textString);
-        dispatch_semaphore_signal(self->_sendSemaphore);
-        dispatch_group_leave(self.class.dispatchGroup);
-        allTaskFinish();
-    });
+    TokenNetMicroTask *microTask = [self getMicroTaskWithTaskID:task.taskIdentifier];
+    [microTask URLSession:session task:task didCompleteWithError:error];
 }
 
-#pragma mark - getter
-
-// 根据taskID获取对应的handle
-- (TokenNetworkingHandler *)getHandleWithTaskID:(NSUInteger)taskID {
-    TokenNetworkingHandler *handle;
-    for (NSInteger i = 0; i <_handles.count; i++) {
-        handle = [_handles objectAtIndex:i];
-        if (handle.taskID == taskID) {
-            break;
-        }
-    }
-    return handle;
-}
-
-- (void)dealloc {
-    pthread_mutex_destroy(&_lock);
-}
-
-+(TokenNetworkingTasksBlock)allTasks{
-    
-    return ^TokenNetworking *(NSArray <TokenNetworking *> *tasks, dispatch_block_t finish){
-        if (!tasks.count || !finish) {
-            return TokenNetworking.networking;
-        }
+#pragma mark - dot synax
++ (TokenNetworkingTasksBlock)allTasks{
+    return ^TokenNetworking *(NSArray <TokenNetMicroTask *> *tasks, dispatch_block_t finish){
         
-        NSString *identifier = tasks[0].identifier;
-        for (TokenNetworking *networking in tasks) {
-            networking.identifier = identifier;
-        }
-        
-        TokenNetworkingTask *task = [[TokenNetworkingTask alloc] init];
-        task.concurrentTaskCount  = tasks.count;
-        task.finish               = finish;
-        [[TokenNetworking taskCallBacks] setObject:task forKey:identifier];
-        
-        return TokenNetworking.networking;
-    };
-}
-
-@end
-
-#pragma mark - chain 链式调用的基础
-
-@implementation TokenNetworking(Chain)
-
-- (instancetype)networking {
-    return [[TokenNetworking alloc] initWithSessionConfiguration:nil delegateQueue:nil];
-}
-
-- (TokenNetworkingCreateBlock)createNetworking{
-    return ^TokenNetworking *(NSURLSessionConfiguration *sessionConfiguration, NSOperationQueue *delegateQueue) {
-        return [[TokenNetworking alloc] initWithSessionConfiguration:sessionConfiguration delegateQueue:delegateQueue];
-    };
-}
-
-- (TokenSendRequestBlock)request {
-    return ^TokenNetworking *(TokenRequestMakeBlock make) {
-        // make是使用方传入的 我们使用这个make() 去拿到使用方返回给我们的NSURLRequest
-        if (!make) return self;
-        //多线程数组操作，加锁进入临界区
-        [self lock];
-        TokenNetworkingHandler *handle = [[TokenNetworkingHandler alloc] init];
-        // 将make 保存在handle 里面
-        handle.requestMakeBlock = make;
-        
-        if (make) {
-            dispatch_group_enter(self.class.dispatchGroup);
-        }
-        // handle加入handles数组
-        [self->_handles addObject:handle];
-        [self unlock];
-        dispatch_async([self.class searalQueue], ^{
-            // 此处使用信号量阻塞 当信号量 > 0的时候才会往下运行 否则一直卡在此处
-            dispatch_semaphore_wait(self->_sendSemaphore, DISPATCH_TIME_FOREVER);
-            // 当网络任务执行完毕 再运行了 .responseText 或者.responseJSON后，我们释放一个信号量；再或者直接error也会释放信号量。下面的代码接着运行
-            // get top
-            if (handle.requestMakeBlock) {
-                // 此处我们执行上面保存的block 拿到request
-                NSURLRequest *request = handle.requestMakeBlock();
-                // 生成一个task
-                NSURLSessionTask *task = [self->_session dataTaskWithRequest:request];
-                handle.taskID = task.taskIdentifier;
-                // task 开始运行
-                [task resume];
+        BOOL enter = NO;
+        __block dispatch_group_t group = dispatch_group_create();
+        for (TokenNetMicroTask *task in tasks) {
+            if ([task isKindOfClass:[TokenNetMicroTask class]]) {
+                enter = YES;
+                task.taskGroup = group;
+                dispatch_group_enter(group);
             }
+        }
+        
+        if (!enter) {
+            !finish ?: finish();
+            return nil;
+        }
+        
+        TokenNetworking *networking = [TokenNetworking networking];
+        dispatch_async(networking.processQueue, ^{
+            dispatch_semaphore_wait(networking.taskSemaphore, DISPATCH_TIME_FOREVER);
         });
-        return self;
+        
+        dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+            // 延长group 的生命周期
+            group = nil;
+            !finish ?: finish();
+            dispatch_semaphore_signal(networking.taskSemaphore);
+            [networking queryFinishTasks];
+        });
+        
+        return networking;
     };
 }
 
-// 下面两个方法都是对于上面request的封装，使得使用者调用更加简单
-- (TokenNetParametersBlock)postWithURL {
-    return ^TokenNetworking *(NSString *urlString, NSDictionary *parameters) {
-        NSURL *url = [NSURL URLWithString:urlString];
-        NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
-        request.token_setMethod(@"POST");
-        if (parameters) {
-            request.token_setHTTPParameter(parameters);
-        }
-        return self.request(^NSURLRequest *(void) {
-            return request;
+- (TokenNetRequestBlock)requestWith{
+    return ^TokenNetMicroTask *_Nonnull(NSURLRequest *request){
+        NSURLSessionDataTask *dataTask = [self.session dataTaskWithRequest:request];
+        TokenNetMicroTask *task        = [[TokenNetMicroTask alloc] init];
+        task.dataTask                  = dataTask;
+        task.networking                = self;
+        [self addMicroTask:task];
+        return task;
+    };
+}
+
+- (TokenSendRequestBlock)makeRequest{
+    return ^TokenNetMicroTask *_Nonnull(TokenRequestMakeBlock  _Nonnull make) {
+        TokenNetMicroTask *task = [[TokenNetMicroTask alloc] init];
+        task.networking         = self;
+        [self lock];
+        [self.microTasks addObject:task];
+        [self unlock];
+        
+        dispatch_async(self.processQueue, ^{
+            dispatch_semaphore_wait(self.taskSemaphore, DISPATCH_TIME_FOREVER);
+            NSURLRequest *request          = make();
+            NSURLSessionDataTask *dataTask = [self.session dataTaskWithRequest:request];
+            task.dataTask                  = dataTask;
+            [task.dataTask resume];
         });
+        return task;
     };
 }
 
 - (TokenNetParametersBlock)getWithURL {
-    return ^TokenNetworking *(NSString *urlString,NSDictionary *parameters) {
+    return ^TokenNetMicroTask *(NSString *urlString,NSDictionary *parameters) {
         NSURL *url = [NSURL URLWithString:urlString];
         NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
         request.token_setMethod(@"GET");
         if (parameters) {
             request.token_setHTTPParameter(parameters);
         }
-        return self.request(^NSURLRequest *(void) {
-            return request;
-        });
+        return self.requestWith(request);
     };
 }
 
-- (TokenChainRedirectBlock)willRedirect {
-    return ^TokenNetworking *(TokenChainRedirectParameterBlock redirectParameter) {
-        // get top
-        TokenNetworkingHandler *handle = [self->_handles lastObject];
-        if (handle) {
-            handle.redirectBlock = redirectParameter;
+- (TokenNetParametersBlock)postWithURL {
+    return ^TokenNetMicroTask *(NSString *urlString, NSDictionary *parameters) {
+        NSURL *url = [NSURL URLWithString:urlString];
+        NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+        request.token_setMethod(@"POST");
+        if (parameters) {
+            request.token_setHTTPParameter(parameters);
         }
-        return self;
-    };
-}
-
-- (TokenResponseJSONBlock)willResponseJSON {
-    return ^TokenNetworking *(TokenNetSuccessJSONBlock jsonBlock) {
-        // get top
-        TokenNetworkingHandler *handle = [self->_handles lastObject];
-        if (handle) {
-            handle.willResponseJSON = jsonBlock;
-        }
-        return self;
-    };
-}
-
-- (TokenResponseJSONBlock)responseJSON {
-    return ^TokenNetworking *(TokenNetSuccessJSONBlock jsonBlock) {
-        // get top
-        TokenNetworkingHandler *handle = [self->_handles lastObject];
-        if (handle) {
-            handle.responseJSON = jsonBlock;
-        }
-        return self;
-    };
-}
-
-- (TokenResponseTextBlock)willResponseText {
-    return ^TokenNetworking *(TokenNetSuccessTextBlock textBlock) {
-        // get top
-        TokenNetworkingHandler *handle = [self->_handles lastObject];
-        if (handle) {
-            handle.willResponseText = textBlock;
-        }
-        return self;
-    };
-}
-
-- (TokenResponseTextBlock)responseText {
-    return ^TokenNetworking *(TokenNetSuccessTextBlock textBlock) {
-        // get top
-        TokenNetworkingHandler *handle = [self->_handles lastObject];
-        if (handle) {
-            handle.responseText = textBlock;
-        }
-        return self;
-    };
-}
-
-- (TokenWillFailureBlock)willFailure {
-    return ^TokenNetworking *(TokenNetFailureParameterBlock failureBlock) {
-        // get top
-        TokenNetworkingHandler *handle = [self->_handles lastObject];
-        if (handle) {
-            handle.willFailure = failureBlock;
-        }
-        return self;
-    };
-}
-
-- (TokenNetFailureBlock)failure {
-    return ^TokenNetworking *(TokenNetFailureParameterBlock failure) {
-        // get top
-        TokenNetworkingHandler *handle = [self->_handles lastObject];
-        if (handle) {
-            handle.failureBlock = failure;
-        }
-        return self;
+        return self.requestWith(request);
     };
 }
 
 @end
+
+@implementation TokenNetMicroTask
+- (instancetype)init
+{
+    self = [super init];
+    if (self) {
+        _data = [NSMutableData data];
+    }
+    return self;
+}
+
+- (TokenNetworking *)next{
+    return _networking;
+}
+
+- (TokenChainRedirectBlock)redirect{
+    return ^TokenNetMicroTask *_Nonnull(TokenChainRedirectParameterBlock redirectParameter){
+        self.redirectAction = redirectParameter;
+        return self;
+    };
+}
+
+- (TokenResponseDataBlock)responseData{
+    return ^TokenNetMicroTask * _Nonnull(TokenNetSuccessDataBlock  _Nonnull jsonBlock) {
+        self.responseDataAction = jsonBlock;
+        return self;
+    };
+}
+
+- (TokenResponseJSONBlock)responseJSON{
+    return ^TokenNetMicroTask * _Nonnull(TokenNetSuccessJSONBlock  _Nonnull jsonBlock) {
+        self.responseJSONAction = jsonBlock;
+        return self;
+    };
+}
+
+- (TokenResponseTextBlock)responseText{
+    return ^TokenNetMicroTask * _Nonnull(TokenNetSuccessTextBlock  _Nonnull textBlock) {
+        self.responseTextAction = textBlock;
+        return self;
+    };
+}
+
+- (TokenNetFailureBlock)failure{
+    return ^TokenNetMicroTask * _Nonnull(TokenNetFailureParameterBlock  _Nonnull failure) {
+        self.failureAction = failure;
+        return self;
+    };
+}
+
+#pragma mark - delegate
+
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response
+       newRequest:(NSURLRequest *)request completionHandler:(void (^)(NSURLRequest * _Nullable))completionHandler{
+    if (self.redirectAction) {
+        return completionHandler(self.redirectAction(request, response));
+    }
+    completionHandler(request);
+}
+
+- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask
+    didReceiveData:(NSData *)data {
+    [self.data appendData:data];
+}
+
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
+    
+    dispatch_block_t processFinish = ^(){
+        [self.networking removeMicroTask:self];
+        [self.networking queryFinishTasks];
+    };
+    
+    if (error) {
+        if (self.failureAction) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                !self.failureAction ?: self.failureAction(error);
+            });
+        }
+        processFinish();
+        return ;
+    }
+    
+    NSData *data = self.data.copy;
+    if (self.responseDataAction) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            !self.responseDataAction ?: self.responseDataAction(task, data);
+        });
+    }
+    
+    if (self.responseJSONAction) {
+        NSError *jsonError = nil;
+        id json = [NSJSONSerialization JSONObjectWithData:data options:(NSJSONReadingAllowFragments) error:&jsonError];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            !self.responseJSONAction ?: self.responseJSONAction(task, jsonError, json);
+        });
+    }
+    
+    if (self.responseTextAction) {
+        NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            !self.responseTextAction ?: self.responseTextAction(task, text);
+        });
+    }
+    
+    processFinish();
+}
+
+@end
+

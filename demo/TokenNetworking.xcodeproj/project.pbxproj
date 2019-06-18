@@ -13,7 +13,6 @@
 		70A0030522AD252D007178A7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 70A0030422AD252D007178A7 /* Assets.xcassets */; };
 		70A0030822AD252D007178A7 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 70A0030622AD252D007178A7 /* LaunchScreen.storyboard */; };
 		70A0030B22AD252D007178A7 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 70A0030A22AD252D007178A7 /* main.m */; };
-		70DE37B622B7470C0039C124 /* TokenNetworkingCategories.m in Sources */ = {isa = PBXBuildFile; fileRef = 70DE37AE22B7470C0039C124 /* TokenNetworkingCategories.m */; };
 		70DE37B722B7470C0039C124 /* TokenNetworking.m in Sources */ = {isa = PBXBuildFile; fileRef = 70DE37AF22B7470C0039C124 /* TokenNetworking.m */; };
 		70DE37B822B7470C0039C124 /* TokenNetworkingAssistant.m in Sources */ = {isa = PBXBuildFile; fileRef = 70DE37B022B7470C0039C124 /* TokenNetworkingAssistant.m */; };
 		70DE37B922B7470C0039C124 /* TokenHTTPBodyStream.m in Sources */ = {isa = PBXBuildFile; fileRef = 70DE37B122B7470C0039C124 /* TokenHTTPBodyStream.m */; };
@@ -30,11 +29,9 @@
 		70A0030722AD252D007178A7 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		70A0030922AD252D007178A7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		70A0030A22AD252D007178A7 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
-		70DE37AE22B7470C0039C124 /* TokenNetworkingCategories.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TokenNetworkingCategories.m; sourceTree = "<group>"; };
 		70DE37AF22B7470C0039C124 /* TokenNetworking.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TokenNetworking.m; sourceTree = "<group>"; };
 		70DE37B022B7470C0039C124 /* TokenNetworkingAssistant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TokenNetworkingAssistant.m; sourceTree = "<group>"; };
 		70DE37B122B7470C0039C124 /* TokenHTTPBodyStream.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TokenHTTPBodyStream.m; sourceTree = "<group>"; };
-		70DE37B222B7470C0039C124 /* TokenNetworkingCategories.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TokenNetworkingCategories.h; sourceTree = "<group>"; };
 		70DE37B322B7470C0039C124 /* TokenNetworking.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TokenNetworking.h; sourceTree = "<group>"; };
 		70DE37B422B7470C0039C124 /* TokenHTTPBodyStream.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TokenHTTPBodyStream.h; sourceTree = "<group>"; };
 		70DE37B522B7470C0039C124 /* TokenNetworkingAssistant.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TokenNetworkingAssistant.h; sourceTree = "<group>"; };
@@ -93,8 +90,6 @@
 				70DE37AF22B7470C0039C124 /* TokenNetworking.m */,
 				70DE37B522B7470C0039C124 /* TokenNetworkingAssistant.h */,
 				70DE37B022B7470C0039C124 /* TokenNetworkingAssistant.m */,
-				70DE37B222B7470C0039C124 /* TokenNetworkingCategories.h */,
-				70DE37AE22B7470C0039C124 /* TokenNetworkingCategories.m */,
 			);
 			name = core;
 			path = ../core;
@@ -173,7 +168,6 @@
 				70DE37B922B7470C0039C124 /* TokenHTTPBodyStream.m in Sources */,
 				70DE37B822B7470C0039C124 /* TokenNetworkingAssistant.m in Sources */,
 				70A0030022AD252C007178A7 /* ViewController.m in Sources */,
-				70DE37B622B7470C0039C124 /* TokenNetworkingCategories.m in Sources */,
 				70DE37B722B7470C0039C124 /* TokenNetworking.m in Sources */,
 				70A0030B22AD252D007178A7 /* main.m in Sources */,
 				70A002FD22AD252C007178A7 /* AppDelegate.m in Sources */,
