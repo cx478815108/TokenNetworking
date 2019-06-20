@@ -10,6 +10,13 @@
 #import "TokenNetworkingAssistant.h"
 #import <CoreServices/CoreServices.h>
 
+/**
+ TokenHTTPBodyComponent: 每个上传的数据模型，比如：二进制文件，参数列表等
+ 内部会对每个数据进行包装，添加必要的头部，数据实体，尾部，这三个部分均使用3个NSInputStream 进行数据的读取。
+ 
+ TokenHTTPBodyStream: 将多个TokenHTTPBodyComponent 组合成流的形式，并提供给request.HTTPBodyStream
+ */
+
 #pragma mark -
 static NSString *const TokenBodyCRLF = @"\r\n";
 
@@ -22,6 +29,14 @@ static NSString *TokenContentTypeForPathExtension(NSString *extension) {
     return contentType;
 }
 
+/**
+ 通过该函数，生成每个二进制数据的开头
+
+ @param boundary 分割线
+ @param name 表单name 字段
+ @param fileName 文件名
+ @return 包装好的字符串
+ */
 static NSString *TokenCreateBodyFileHeaderSign(NSString *boundary, NSString *name, NSString *fileName){
     NSMutableString *header = [NSMutableString string];
     [header appendString:[NSString stringWithFormat:@"--%@%@", boundary, TokenBodyCRLF]];
@@ -36,6 +51,13 @@ static NSString *TokenCreateBodyFileHeaderSign(NSString *boundary, NSString *nam
     return header;
 }
 
+/**
+ 通过这个函数将参数包装起来
+
+ @param boundary 分割字符
+ @param parameters 参数
+ @return 包装好的字符串
+ */
 static NSString *TokenCreateBodyParamaters(NSString *boundary, NSDictionary *parameters){
     NSMutableString *bodyContent = [NSMutableString string];
     

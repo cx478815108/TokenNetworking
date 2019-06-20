@@ -74,7 +74,7 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
 }
 
 #pragma mark - action
--(void)prepare{
+- (void)prepare{
     _operationLock = dispatch_semaphore_create(1);
     _taskSemaphore = dispatch_semaphore_create(1);
     _processQueue  = dispatch_queue_create("com.tokennetworking.microtaskqueue", NULL);
