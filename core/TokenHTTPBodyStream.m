@@ -196,13 +196,11 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
     return nil;
 }
 
-- (BOOL)setProperty:(__unused id)property forKey:(__unused NSString *)key
-{
+- (BOOL)setProperty:(__unused id)property forKey:(__unused NSString *)key {
     return NO;
 }
 
-- (BOOL)getBuffer:(__unused uint8_t **)buffer length:(__unused NSUInteger *)len
-{
+- (BOOL)getBuffer:(__unused uint8_t **)buffer length:(__unused NSUInteger *)len {
     return YES;
 }
 
@@ -210,14 +208,11 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
     return [self streamStatus] == NSStreamStatusOpen;
 }
 
-- (void)scheduleInRunLoop:(__unused NSRunLoop *)aRunLoop forMode:(__unused NSString *)mode
-{}
+- (void)scheduleInRunLoop:(__unused NSRunLoop *)aRunLoop forMode:(__unused NSString *)mode {}
 
-- (void)removeFromRunLoop:(__unused NSRunLoop *)aRunLoop forMode:(__unused NSString *)mode
-{}
+- (void)removeFromRunLoop:(__unused NSRunLoop *)aRunLoop forMode:(__unused NSString *)mode {}
 
-- (NSInteger)read:(uint8_t *)buffer maxLength:(NSUInteger)length
-{
+- (NSInteger)read:(uint8_t *)buffer maxLength:(NSUInteger)length {
     if ([self streamStatus] == NSStreamStatusClosed) {
         return 0;
     }
@@ -236,8 +231,8 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
         NSUInteger maxLength        = min - (NSUInteger)totalNumberOfBytesRead;
         NSInteger numberOfBytesRead = [_currentComponent read:&buffer[totalNumberOfBytesRead] maxLength:maxLength];
         if (numberOfBytesRead == -1) {
-            self.streamError  = _currentComponent.streamError;
-            self.streamStatus = NSStreamStatusError;
+            self.streamError       = _currentComponent.streamError;
+            self.streamStatus      = NSStreamStatusError;
             totalNumberOfBytesRead = -1;
             break;
         } else {
@@ -368,7 +363,7 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
     NSData *trailData         = [TokenBodyCRLF dataUsingEncoding:_stringEncoding];
     _trailSignStream          = [[NSInputStream alloc] initWithData:trailData];
     _trailSignStream.delegate = self;
-    _bodyLength               += trailData.length;
+    _bodyLength              += trailData.length;
     [_trailSignStream scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
     [_trailSignStream open];
 }
