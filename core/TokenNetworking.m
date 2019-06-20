@@ -154,7 +154,7 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
     [microTask URLSession:session task:task didCompleteWithError:error];
 }
 
-#pragma mark - dot synax
+#pragma mark - dot syntax
 + (TokenNetworkingTasksBlock)allTasks{
     return ^TokenNetworking *(NSArray <TokenNetMicroTask *> *tasks, dispatch_block_t finish){
         
@@ -254,6 +254,7 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
     return self;
 }
 
+#pragma mark - dot syntax
 - (TokenNetworking *)next{
     return _networking;
 }
@@ -315,9 +316,10 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
         [self.networking queryFinishTasks];
     };
     
+    dispatch_queue_t mainQueue = dispatch_get_main_queue();
     if (error) {
         if (self.failureAction) {
-            dispatch_async(dispatch_get_main_queue(), ^{
+            dispatch_async(mainQueue, ^{
                 !self.failureAction ?: self.failureAction(error);
             });
         }
@@ -327,7 +329,7 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
     
     NSData *data = self.data.copy;
     if (self.responseDataAction) {
-        dispatch_async(dispatch_get_main_queue(), ^{
+        dispatch_async(mainQueue, ^{
             !self.responseDataAction ?: self.responseDataAction(task, data);
         });
     }
@@ -335,14 +337,14 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
     if (self.responseJSONAction) {
         NSError *jsonError = nil;
         id json = [NSJSONSerialization JSONObjectWithData:data options:(NSJSONReadingAllowFragments) error:&jsonError];
-        dispatch_async(dispatch_get_main_queue(), ^{
+        dispatch_async(mainQueue, ^{
             !self.responseJSONAction ?: self.responseJSONAction(task, jsonError, json);
         });
     }
     
     if (self.responseTextAction) {
         NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-        dispatch_async(dispatch_get_main_queue(), ^{
+        dispatch_async(mainQueue, ^{
             !self.responseTextAction ?: self.responseTextAction(task, text);
         });
     }
