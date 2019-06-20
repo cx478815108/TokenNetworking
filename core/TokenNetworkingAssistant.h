@@ -14,8 +14,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (readwrite, nonatomic, strong) id field;
 @property (readwrite, nonatomic, strong) id value;
+
 - (instancetype)initWithField:(id)field value:(id)value;
 - (NSString *)URLEncodedStringValue;
+
 @end
 
 extern NSString *TokenPercentEscapedStringFromString(NSString *string);
