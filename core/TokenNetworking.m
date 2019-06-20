@@ -192,10 +192,9 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
 
 - (TokenNetRequestBlock)requestWith{
     return ^TokenNetMicroTask *_Nonnull(NSURLRequest *request){
-        NSURLSessionDataTask *dataTask = [self.session dataTaskWithRequest:request];
-        TokenNetMicroTask *task        = [[TokenNetMicroTask alloc] init];
-        task.dataTask                  = dataTask;
-        task.networking                = self;
+        TokenNetMicroTask *task = [[TokenNetMicroTask alloc] init];
+        task.dataTask           = [self.session dataTaskWithRequest:request];
+        task.networking         = self;
         [self addMicroTask:task];
         return task;
     };
@@ -211,9 +210,8 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
         
         dispatch_async(self.processQueue, ^{
             dispatch_semaphore_wait(self.taskSemaphore, DISPATCH_TIME_FOREVER);
-            NSURLRequest *request          = make();
-            NSURLSessionDataTask *dataTask = [self.session dataTaskWithRequest:request];
-            task.dataTask                  = dataTask;
+            NSURLRequest *request = make();
+            task.dataTask         = [self.session dataTaskWithRequest:request];;
             [task.dataTask resume];
         });
         return task;
