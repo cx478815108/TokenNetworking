@@ -66,10 +66,10 @@ NSString * TokenQueryStringFromParameters(NSDictionary *parameters) {
 }
 
 NSArray * TokenQueryStringPairsFromDictionary(NSDictionary *dictionary) {
-    return TokenQueryStringPairsFromKeyAndValue(@"", dictionary);
+    return TokenQueryStringPairsFromKeyAndValue(nil, dictionary);
 }
 
-NSArray * TokenQueryStringPairsFromKeyAndValue(NSString * _Nonnull key, id value) {
+NSArray * TokenQueryStringPairsFromKeyAndValue(NSString *key, id value) {
     NSMutableArray *mutableQueryStringComponents = [NSMutableArray array];
     NSSortDescriptor *sortDescriptor = [NSSortDescriptor sortDescriptorWithKey:@"description" ascending:YES selector:@selector(compare:)];
     if ([value isKindOfClass:[NSDictionary class]]) {

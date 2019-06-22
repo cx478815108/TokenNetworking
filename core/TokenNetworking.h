@@ -38,7 +38,7 @@ typedef TokenNetworking *_Nonnull(^TokenNetworkingCreateBlock)(NSURLSessionConfi
 typedef NSURLRequest    *_Nonnull(^TokenRequestMakeBlock)(void);
 typedef TokenNetMicroTask *_Nonnull(^TokenSendRequestBlock)(TokenRequestMakeBlock make);
 typedef TokenNetMicroTask *_Nonnull(^TokenNetRequestBlock)(NSURLRequest *request);
-typedef TokenNetMicroTask *_Nonnull(^TokenNetParametersBlock)(NSString *urlString, NSDictionary *parameters);
+typedef TokenNetMicroTask *_Nonnull(^TokenNetParametersBlock)(NSString *urlString, NSDictionary *_Nullable parameters);
 
 @interface TokenNetMicroTask : NSObject
 @property (nonatomic, copy, readonly) TokenChainRedirectBlock redirect;

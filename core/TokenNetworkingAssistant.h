@@ -21,7 +21,7 @@ NS_ASSUME_NONNULL_BEGIN
 extern NSString *TokenPercentEscapedStringFromString(NSString *string);
 extern NSString *TokenQueryStringFromParameters(NSDictionary *parameters);
 extern NSArray <TokenQueryStringPair *> * TokenQueryStringPairsFromDictionary(NSDictionary *dictionary);
-extern NSArray <TokenQueryStringPair *> * TokenQueryStringPairsFromKeyAndValue(NSString * _Nonnull key, id value);
+extern NSArray <TokenQueryStringPair *> * TokenQueryStringPairsFromKeyAndValue(NSString *_Nullable key, id value);
 extern NSArray <TokenQueryStringPair *> * TokenQueryStringPairsFromDictionary(NSDictionary *dictionary);
 
 #pragma mark - NSDictionary
@@ -39,7 +39,7 @@ typedef NSMutableURLRequest *_Nonnull(^NSURLRequestTimeoutBlock)(NSTimeInterval 
 typedef NSMutableURLRequest *_Nonnull(^NSURLRequestStringSetBlock)(NSString *value);
 typedef NSMutableURLRequest *_Nonnull(^NSURLRequestBOOLSetBlock)(BOOL value);
 typedef NSMutableURLRequest *_Nonnull(^NSURLRequestDictionarySetBlock)(NSDictionary *dic);
-typedef NSMutableURLRequest *_Nonnull(^NSURLRequestJSONSetBlock)(NSDictionary *dic,NSError *error);
+typedef NSMutableURLRequest *_Nonnull(^NSURLRequestJSONSetBlock)(NSDictionary *dic, NSError *_Nullable error);
 typedef NSString *_Nonnull(^TokenNetworkingPostHTTPParameterBlock)(NSDictionary *parameter);
 
 @interface NSMutableURLRequest (TokenNetworking)
