@@ -62,7 +62,8 @@ static NSOperationQueue *TokenNetSessionDelegateQueue() {
     };
 }
 
-- (instancetype)init {
+- (instancetype)init
+{
     if (self = [super init]) {
         _session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:self delegateQueue:TokenNetSessionDelegateQueue()];
         [self prepare];
@@ -254,7 +255,8 @@ static NSOperationQueue *TokenNetSessionDelegateQueue() {
 
 @implementation TokenNetMicroTask
 
-- (instancetype)init {
+- (instancetype)init
+{
     self = [super init];
     if (self) {
         _data = [NSMutableData data];
