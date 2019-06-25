@@ -15,50 +15,61 @@ NS_ASSUME_NONNULL_BEGIN
 @class TokenNetworking;
 @class TokenNetMicroTask;
 
-// redirect
-typedef NSURLRequest    *_Nonnull(^TokenChainRedirectParameterBlock)(NSURLRequest *request, NSURLResponse *response);
+// redirect 参数 BLOCK 定义
+typedef NSURLRequest *_Nonnull(^TokenChainRedirectParameterBlock)(NSURLRequest *request, NSURLResponse *response);
+
+/// 链式重定向 BLOCK 定义
 typedef TokenNetMicroTask *_Nonnull(^TokenChainRedirectBlock)(TokenChainRedirectParameterBlock redirectParameter);
 
-// JSON TEXT FAILURE参数BLOCK
+/// DATA JSON TEXT FAILURE 参数 BLOCK 定义
+typedef void(^TokenNetSuccessDataBlock)(NSURLSessionTask *task, NSData *responseData);
 typedef void(^TokenNetSuccessJSONBlock)(NSURLSessionTask *task, NSError *jsonError, id responsedObj);
 typedef void(^TokenNetSuccessTextBlock)(NSURLSessionTask *task, NSString *responsedText);
-typedef void(^TokenNetSuccessDataBlock)(NSURLSessionTask *task, NSData *responseData);
 typedef void(^TokenNetFailureParameterBlock)(NSError *error);
 
-// response
+/// 链式 response 和 failure BLOCK 定义
 typedef TokenNetMicroTask *_Nonnull(^TokenResponseDataBlock)(TokenNetSuccessDataBlock jsonBlock);
 typedef TokenNetMicroTask *_Nonnull(^TokenResponseJSONBlock)(TokenNetSuccessJSONBlock jsonBlock);
 typedef TokenNetMicroTask *_Nonnull(^TokenResponseTextBlock)(TokenNetSuccessTextBlock textBlock);
 typedef TokenNetMicroTask *_Nonnull(^TokenNetFailureBlock)(TokenNetFailureParameterBlock failure);
 
-typedef TokenNetworking *_Nullable(^TokenNetworkingTasksBlock)(NSArray <TokenNetMicroTask *> *tasks, dispatch_block_t finish);
 typedef TokenNetworking *_Nonnull(^TokenNetworkingCreateBlock)(NSURLSessionConfiguration *sessionConfiguration, NSOperationQueue *delegateQueue);
+typedef TokenNetworking *_Nullable(^TokenNetworkingTasksBlock)(NSArray <TokenNetMicroTask *> *tasks, dispatch_block_t finish);
 
-// send
-typedef NSURLRequest    *_Nonnull(^TokenRequestMakeBlock)(void);
+/// send block 定义
+typedef NSURLRequest *_Nonnull(^TokenRequestMakeBlock)(void);
+
 typedef TokenNetMicroTask *_Nonnull(^TokenSendRequestBlock)(TokenRequestMakeBlock make);
 typedef TokenNetMicroTask *_Nonnull(^TokenNetRequestBlock)(NSURLRequest *request);
 typedef TokenNetMicroTask *_Nonnull(^TokenNetParametersBlock)(NSString *urlString, NSDictionary *_Nullable parameters);
 
 @interface TokenNetMicroTask : NSObject
+
 @property (nonatomic, copy, readonly) TokenChainRedirectBlock redirect;
 @property (nonatomic, copy, readonly) TokenResponseDataBlock  responseData;
 @property (nonatomic, copy, readonly) TokenResponseTextBlock  responseText;
 @property (nonatomic, copy, readonly) TokenResponseJSONBlock  responseJSON;
 @property (nonatomic, copy, readonly) TokenNetFailureBlock    failure;
+/// 执行 .next 之后返回 TokenNetworking 对象，可以进行新请求的发送
 @property (nonatomic, weak, readonly) TokenNetworking *next;
+
 @end
 
 @interface TokenNetworking : NSObject
+
+/// 此 block 可指定 NSURLSessionConfiguration 和 NSOperationQueue
 @property (nonatomic, readonly, class) TokenNetworkingCreateBlock createNetworking;
 @property (nonatomic, readonly, class) TokenNetworking *networking;
 @property (nonatomic, readonly, class) TokenNetworkingTasksBlock allTasks;
 
+/// 以下 block 执行后返回 TokenNetMicroTask 对象，可以进行返回数据处理和重定向相关工作
 @property (nonatomic, copy, readonly) TokenSendRequestBlock   makeRequest;
 @property (nonatomic, copy, readonly) TokenNetRequestBlock    requestWith;
 @property (nonatomic, copy, readonly) TokenNetParametersBlock getWithURL;
 @property (nonatomic, copy, readonly) TokenNetParametersBlock postWithURL;
+
 - (instancetype)init NS_UNAVAILABLE;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -89,7 +89,9 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
 @property (nonatomic, readonly) NSError *streamError;
 @property (nonatomic, readonly, assign) unsigned long long bodyLength;
 
+/// 表单上的字段名
 @property (nonatomic, copy, nullable) NSString *name;
+/// 保存的文件名
 @property (nonatomic, copy, nullable) NSString *fileName;
 
 - (instancetype)init NS_UNAVAILABLE;
@@ -147,7 +149,7 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
 - (void)appendParameters:(NSDictionary *)parameters{
     if (![parameters isKindOfClass:[NSDictionary class]]) {
         return ;
-    }    
+    }
     TokenHTTPBodyComponent *component = [TokenHTTPBodyComponent componentWithParameters:parameters boundary:self.boundary];
     [component prepareForRead];
     _length += component.bodyLength;

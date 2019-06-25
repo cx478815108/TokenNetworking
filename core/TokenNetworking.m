@@ -8,58 +8,63 @@
 
 #import "TokenNetworking.h"
 
-static NSOperationQueue *TokenNetSessionDelegateQueue(){
+/**
+ 返回默认的回调队列
+
+ @return DelegateQueue
+ */
+static NSOperationQueue *TokenNetSessionDelegateQueue() {
     static dispatch_once_t onceToken;
     static NSOperationQueue *processQueue;
     dispatch_once(&onceToken, ^{
-        NSProcessInfo *info = [NSProcessInfo processInfo];
-        NSUInteger defaultNumber = [info activeProcessorCount];
         processQueue = [[NSOperationQueue alloc] init];
-        // 并发数 = 核心数 * 2
-        processQueue.maxConcurrentOperationCount = defaultNumber * 2;
+        /// 并发数 = 核心数 * 2
+        processQueue.maxConcurrentOperationCount = [[NSProcessInfo processInfo] activeProcessorCount] * 2;
     });
     return processQueue;
 }
 
 @interface TokenNetMicroTask() <NSURLSessionDataDelegate>
+
 @property (nonatomic, strong) NSMutableData *data;
 @property (nonatomic, strong) NSURLSessionDataTask *dataTask;
 @property (nonatomic, weak  ) TokenNetworking *networking;
 @property (nonatomic, weak  ) dispatch_group_t taskGroup;
 
 @property (nonatomic, copy) TokenChainRedirectParameterBlock redirectAction;
-@property (nonatomic, copy) TokenNetSuccessDataBlock  responseDataAction;
-@property (nonatomic, copy) TokenNetSuccessTextBlock  responseTextAction;
-@property (nonatomic, copy) TokenNetSuccessJSONBlock  responseJSONAction;
+@property (nonatomic, copy) TokenNetSuccessDataBlock responseDataAction;
+@property (nonatomic, copy) TokenNetSuccessTextBlock responseTextAction;
+@property (nonatomic, copy) TokenNetSuccessJSONBlock responseJSONAction;
 @property (nonatomic, copy) TokenNetFailureParameterBlock failureAction;
+
 @end
 
 @interface TokenNetworking() <NSURLSessionDataDelegate>
-@property (nonatomic ,strong) NSMutableArray <TokenNetMicroTask *> *microTasks;
+
+/// 保存每一个任务
+@property (nonatomic, strong) NSMutableArray <TokenNetMicroTask *> *microTasks;
 @property (nonatomic, strong) NSURLSession *session;
 @property (nonatomic, strong) dispatch_semaphore_t operationLock;
 @property (nonatomic, strong) dispatch_semaphore_t taskSemaphore;
 @property (nonatomic, strong) dispatch_queue_t processQueue;
+
 @end
 
 @implementation TokenNetworking
 
-+ (TokenNetworking *)networking{
++ (TokenNetworking *)networking {
     return [[self alloc] init];
 }
 
-+ (TokenNetworkingCreateBlock)createNetworking{
-    return ^ TokenNetworking *(NSURLSessionConfiguration *sessionConfiguration, NSOperationQueue *delegateQueue){
++ (TokenNetworkingCreateBlock)createNetworking {
+    return ^TokenNetworking *(NSURLSessionConfiguration *sessionConfiguration, NSOperationQueue *delegateQueue) {
         return [[TokenNetworking alloc] initWithConfiguration:sessionConfiguration delegateQueue:delegateQueue];
     };
 }
 
-- (instancetype)init
-{
+- (instancetype)init {
     if (self = [super init]) {
-        _session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]
-                                                 delegate:self
-                                            delegateQueue:TokenNetSessionDelegateQueue()];
+        _session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:self delegateQueue:TokenNetSessionDelegateQueue()];
         [self prepare];
     }
     return self;
@@ -74,7 +79,8 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
 }
 
 #pragma mark - action
-- (void)prepare{
+
+- (void)prepare {
     _operationLock = dispatch_semaphore_create(1);
     _taskSemaphore = dispatch_semaphore_create(1);
     _processQueue  = dispatch_queue_create("com.tokennetworking.microtaskqueue", NULL);
@@ -91,42 +97,44 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
 
 - (TokenNetMicroTask *)getMicroTaskWithTaskID:(NSUInteger)taskID {
     [self lock];
-    TokenNetMicroTask *targetTask = nil;
+    TokenNetMicroTask *targetTask;
     for (TokenNetMicroTask *microTask in _microTasks) {
         if (microTask.dataTask.taskIdentifier == taskID) {
             targetTask = microTask;
-            break ;
+            break;
         }
     }
     [self unlock];
     return targetTask;
 }
 
-- (TokenNetworking *)addMicroTask:(TokenNetMicroTask *)task{
+- (TokenNetworking *)addMicroTask:(TokenNetMicroTask *)task {
     [self lock];
     [self.microTasks addObject:task];
     [self unlock];
     dispatch_async(_processQueue, ^{
+        /// 串行请求的基础
         dispatch_semaphore_wait(self.taskSemaphore, DISPATCH_TIME_FOREVER);
         [task.dataTask resume];
     });
     return self;
 }
 
-- (void)removeMicroTask:(TokenNetMicroTask *)task{
+- (void)removeMicroTask:(TokenNetMicroTask *)task {
     dispatch_semaphore_signal(_taskSemaphore);
     [self lock];
     [self.microTasks removeObject:task];
     
     // 没有任务，需要通知
     if (self.microTasks.count == 0) {
+        /// 多任务完成执行后执行某操作的基础
         !task.taskGroup ?: dispatch_group_leave(task.taskGroup);
     }
     
     [self unlock];
 }
 
-- (void)queryFinishTasks{
+- (void)queryFinishTasks {
     [self lock];
     if (self.microTasks.count == 0){
         [self.session finishTasksAndInvalidate];
@@ -156,7 +164,7 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
 
 #pragma mark - dot syntax
 + (TokenNetworkingTasksBlock)allTasks{
-    return ^TokenNetworking *(NSArray <TokenNetMicroTask *> *tasks, dispatch_block_t finish){
+    return ^TokenNetworking *(NSArray <TokenNetMicroTask *> *tasks, dispatch_block_t finish) {
         
         BOOL enter = NO;
         __block dispatch_group_t group = dispatch_group_create();
@@ -179,7 +187,7 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
         });
         
         dispatch_group_notify(group, dispatch_get_main_queue(), ^{
-            // 延长group 的生命周期
+            // 延长group 的生命周期，block 捕获住这个 group
             group = nil;
             !finish ?: finish();
             dispatch_semaphore_signal(networking.taskSemaphore);
@@ -190,8 +198,8 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
     };
 }
 
-- (TokenNetRequestBlock)requestWith{
-    return ^TokenNetMicroTask *_Nonnull(NSURLRequest *request){
+- (TokenNetRequestBlock)requestWith {
+    return ^TokenNetMicroTask *_Nonnull(NSURLRequest *request) {
         TokenNetMicroTask *task = [[TokenNetMicroTask alloc] init];
         task.dataTask           = [self.session dataTaskWithRequest:request];
         task.networking         = self;
@@ -200,7 +208,7 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
     };
 }
 
-- (TokenSendRequestBlock)makeRequest{
+- (TokenSendRequestBlock)makeRequest {
     return ^TokenNetMicroTask *_Nonnull(TokenRequestMakeBlock  _Nonnull make) {
         TokenNetMicroTask *task = [[TokenNetMicroTask alloc] init];
         task.networking         = self;
@@ -219,7 +227,7 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
 }
 
 - (TokenNetParametersBlock)getWithURL {
-    return ^TokenNetMicroTask *(NSString *urlString,NSDictionary *parameters) {
+    return ^TokenNetMicroTask *(NSString *urlString, NSDictionary *parameters) {
         NSURL *url = [NSURL URLWithString:urlString];
         NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
         request.token_setMethod(@"GET");
@@ -245,8 +253,8 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
 @end
 
 @implementation TokenNetMicroTask
-- (instancetype)init
-{
+
+- (instancetype)init {
     self = [super init];
     if (self) {
         _data = [NSMutableData data];
@@ -255,39 +263,40 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
 }
 
 #pragma mark - dot syntax
-- (TokenNetworking *)next{
+
+- (TokenNetworking *)next {
     return _networking;
 }
 
-- (TokenChainRedirectBlock)redirect{
+- (TokenChainRedirectBlock)redirect {
     return ^TokenNetMicroTask *_Nonnull(TokenChainRedirectParameterBlock redirectParameter){
         self.redirectAction = redirectParameter;
         return self;
     };
 }
 
-- (TokenResponseDataBlock)responseData{
+- (TokenResponseDataBlock)responseData {
     return ^TokenNetMicroTask * _Nonnull(TokenNetSuccessDataBlock  _Nonnull jsonBlock) {
         self.responseDataAction = jsonBlock;
         return self;
     };
 }
 
-- (TokenResponseJSONBlock)responseJSON{
+- (TokenResponseJSONBlock)responseJSON {
     return ^TokenNetMicroTask * _Nonnull(TokenNetSuccessJSONBlock  _Nonnull jsonBlock) {
         self.responseJSONAction = jsonBlock;
         return self;
     };
 }
 
-- (TokenResponseTextBlock)responseText{
+- (TokenResponseTextBlock)responseText {
     return ^TokenNetMicroTask * _Nonnull(TokenNetSuccessTextBlock  _Nonnull textBlock) {
         self.responseTextAction = textBlock;
         return self;
     };
 }
 
-- (TokenNetFailureBlock)failure{
+- (TokenNetFailureBlock)failure {
     return ^TokenNetMicroTask * _Nonnull(TokenNetFailureParameterBlock  _Nonnull failure) {
         self.failureAction = failure;
         return self;
@@ -296,8 +305,10 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
 
 #pragma mark - delegate
 
-- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response
-       newRequest:(NSURLRequest *)request completionHandler:(void (^)(NSURLRequest * _Nullable))completionHandler{
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task
+willPerformHTTPRedirection:(NSHTTPURLResponse *)response
+        newRequest:(NSURLRequest *)request
+ completionHandler:(void (^)(NSURLRequest * _Nullable))completionHandler {
     if (self.redirectAction) {
         return completionHandler(self.redirectAction(request, response));
     }
@@ -309,7 +320,8 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
     [self.data appendData:data];
 }
 
-- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task
+didCompleteWithError:(nullable NSError *)error {
     
     dispatch_block_t processFinish = ^(){
         [self.networking removeMicroTask:self];
@@ -335,7 +347,7 @@ static NSOperationQueue *TokenNetSessionDelegateQueue(){
     }
     
     if (self.responseJSONAction) {
-        NSError *jsonError = nil;
+        NSError *jsonError;
         id json = [NSJSONSerialization JSONObjectWithData:data options:(NSJSONReadingAllowFragments) error:&jsonError];
         dispatch_async(mainQueue, ^{
             !self.responseJSONAction ?: self.responseJSONAction(task, jsonError, json);
