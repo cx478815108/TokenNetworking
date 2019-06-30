@@ -25,22 +25,22 @@ NS_ASSUME_NONNULL_BEGIN
  RFC 3986 states that the following characters are "reserved" characters.
  - General Delimiters: ":", "#", "[", "]", "@", "?", "/"
  - Sub-Delimiters: "!", "$", "&", "'", "(", ")", "*", "+", ",", ";", "="
-
+ 
  In RFC 3986 - Section 3.4, it states that the "?" and "/" characters should not be escaped to allow
  query strings to include a URL. Therefore, all "reserved" characters with the exception of "?" and "/"
  should be percent-escaped in the query string.
-
+ 
  @param string The string to be percent-escaped.
-
+ 
  @return The percent-escaped string.
  */
 extern NSString *TokenPercentEscapedStringFromString(NSString *string);
 
 /**
  A helper method to generate encoded url query parameters for appending to the end of a URL.
-
+ 
  @param parameters A dictionary of key/values to be encoded.
-
+ 
  @return A url encoded query string
  */
 extern NSString *TokenQueryStringFromParameters(NSDictionary *parameters);
@@ -51,7 +51,7 @@ extern NSArray <TokenQueryStringPair *> * TokenQueryStringPairsFromKeyAndValue(N
 
 @interface NSDictionary (TokenNetworking)
 
-+ (NSString *)token_dictionaryToJSONString:(NSDictionary *)dic;
++ (nullable NSString *)token_dictionaryToJSONString:(NSDictionary *)dic;
 
 @end
 

@@ -10,7 +10,7 @@
 
 /**
  返回默认的回调队列
-
+ 
  @return DelegateQueue
  */
 static NSOperationQueue *TokenNetSessionDelegateQueue() {
@@ -36,6 +36,7 @@ static NSOperationQueue *TokenNetSessionDelegateQueue() {
 @property (nonatomic, copy) TokenNetSuccessTextBlock responseTextAction;
 @property (nonatomic, copy) TokenNetSuccessJSONBlock responseJSONAction;
 @property (nonatomic, copy) TokenNetFailureParameterBlock failureAction;
+@property (nonatomic, assign) NSUInteger privateRetryCount;
 
 @end
 
@@ -71,7 +72,7 @@ static NSOperationQueue *TokenNetSessionDelegateQueue() {
     return self;
 }
 
-- (instancetype)initWithConfiguration:(NSURLSessionConfiguration *)configuration delegateQueue:(NSOperationQueue *)delegateQueue{
+- (instancetype)initWithConfiguration:(NSURLSessionConfiguration *)configuration delegateQueue:(NSOperationQueue *)delegateQueue {
     if (self = [super init]) {
         _session = [NSURLSession sessionWithConfiguration:configuration delegate:self delegateQueue:delegateQueue];
         [self prepare];
@@ -85,14 +86,14 @@ static NSOperationQueue *TokenNetSessionDelegateQueue() {
     _operationLock = dispatch_semaphore_create(1);
     _taskSemaphore = dispatch_semaphore_create(1);
     _processQueue  = dispatch_queue_create("com.tokennetworking.microtaskqueue", NULL);
-    _microTasks    = @[].mutableCopy;
+    _microTasks    = [NSMutableArray array];
 }
 
-- (void)lock{
+- (void)lock {
     dispatch_semaphore_wait(_operationLock, DISPATCH_TIME_FOREVER);
 }
 
-- (void)unlock{
+- (void)unlock {
     dispatch_semaphore_signal(_operationLock);
 }
 
@@ -137,7 +138,7 @@ static NSOperationQueue *TokenNetSessionDelegateQueue() {
 
 - (void)queryFinishTasks {
     [self lock];
-    if (self.microTasks.count == 0){
+    if (self.microTasks.count == 0) {
         [self.session finishTasksAndInvalidate];
     }
     [self unlock];
@@ -145,9 +146,10 @@ static NSOperationQueue *TokenNetSessionDelegateQueue() {
 
 #pragma mark - NSURLSessionTaskDelegate
 
-- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task
+willPerformHTTPRedirection:(NSHTTPURLResponse *)response
         newRequest:(NSURLRequest *)request
- completionHandler:(void (^)(NSURLRequest * _Nullable))completionHandler{
+ completionHandler:(void (^)(NSURLRequest * _Nullable))completionHandler {
     TokenNetMicroTask *microTask = [self getMicroTaskWithTaskID:task.taskIdentifier];
     [microTask URLSession:session task:task willPerformHTTPRedirection:response newRequest:request completionHandler:completionHandler];
 }
@@ -158,13 +160,14 @@ static NSOperationQueue *TokenNetSessionDelegateQueue() {
     [microTask URLSession:session dataTask:dataTask didReceiveData:data];
 }
 
-- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task
+didCompleteWithError:(NSError *)error {
     TokenNetMicroTask *microTask = [self getMicroTaskWithTaskID:task.taskIdentifier];
     [microTask URLSession:session task:task didCompleteWithError:error];
 }
 
 #pragma mark - dot syntax
-+ (TokenNetworkingTasksBlock)allTasks{
++ (TokenNetworkingTasksBlock)allTasks {
     return ^TokenNetworking *(NSArray <TokenNetMicroTask *> *tasks, dispatch_block_t finish) {
         
         BOOL enter = NO;
@@ -188,7 +191,7 @@ static NSOperationQueue *TokenNetSessionDelegateQueue() {
         });
         
         dispatch_group_notify(group, dispatch_get_main_queue(), ^{
-            // 延长group 的生命周期，block 捕获住这个 group
+            /// 延长group 的生命周期，block 捕获住这个 group
             group = nil;
             !finish ?: finish();
             dispatch_semaphore_signal(networking.taskSemaphore);
@@ -271,7 +274,7 @@ static NSOperationQueue *TokenNetSessionDelegateQueue() {
 }
 
 - (TokenChainRedirectBlock)redirect {
-    return ^TokenNetMicroTask *_Nonnull(TokenChainRedirectParameterBlock redirectParameter){
+    return ^TokenNetMicroTask *_Nonnull(TokenChainRedirectParameterBlock redirectParameter) {
         self.redirectAction = redirectParameter;
         return self;
     };
@@ -305,6 +308,15 @@ static NSOperationQueue *TokenNetSessionDelegateQueue() {
     };
 }
 
+- (TokenRetryCountBlock)retryCount {
+    return ^TokenNetMicroTask * _Nonnull(NSUInteger retryCount) {
+        if (retryCount >= 1) {
+            self.privateRetryCount = retryCount;
+        }
+        return self;
+    };
+}
+
 #pragma mark - delegate
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task
@@ -325,7 +337,16 @@ willPerformHTTPRedirection:(NSHTTPURLResponse *)response
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task
 didCompleteWithError:(nullable NSError *)error {
     
-    dispatch_block_t processFinish = ^(){
+    if (error && _privateRetryCount) {
+        /// 直接发起新的request，剩余重试次数 -1
+        _privateRetryCount -= 1;
+        NSURLSession *newSession = [NSURLSession sessionWithConfiguration:session.configuration.copy delegate:self delegateQueue:session.delegateQueue];
+        NSURLSessionTask *newTask = [newSession dataTaskWithRequest:task.currentRequest.copy];
+        [newTask resume];
+        return;
+    }
+    
+    dispatch_block_t processFinish = ^() {
         [self.networking removeMicroTask:self];
         [self.networking queryFinishTasks];
     };

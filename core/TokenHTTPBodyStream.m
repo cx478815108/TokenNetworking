@@ -10,14 +10,8 @@
 #import "TokenNetworkingAssistant.h"
 #import <CoreServices/CoreServices.h>
 
-/**
- TokenHTTPBodyComponent: 每个上传的数据模型，比如：二进制文件，参数列表等
- 内部会对每个数据进行包装，添加必要的头部，数据实体，尾部，这三个部分均使用3个NSInputStream 进行数据的读取。
- 
- TokenHTTPBodyStream: 将多个TokenHTTPBodyComponent 组合成流的形式，并提供给request.HTTPBodyStream
- */
-
 #pragma mark -
+
 static NSString *const TokenBodyCRLF = @"\r\n";
 
 static NSString *TokenContentTypeForPathExtension(NSString *extension) {
@@ -31,13 +25,13 @@ static NSString *TokenContentTypeForPathExtension(NSString *extension) {
 
 /**
  通过该函数，生成每个二进制数据的开头
-
+ 
  @param boundary 分割线
  @param name 表单name 字段
  @param fileName 文件名
  @return 包装好的字符串
  */
-static NSString *TokenCreateBodyFileHeaderSign(NSString *boundary, NSString *name, NSString *fileName){
+static NSString *TokenCreateBodyFileHeaderSign(NSString *boundary, NSString *name, NSString *fileName) {
     NSMutableString *header = [NSMutableString string];
     [header appendString:[NSString stringWithFormat:@"--%@%@", boundary, TokenBodyCRLF]];
     
@@ -53,12 +47,12 @@ static NSString *TokenCreateBodyFileHeaderSign(NSString *boundary, NSString *nam
 
 /**
  通过这个函数将参数包装起来
-
+ 
  @param boundary 分割字符
  @param parameters 参数
  @return 包装好的字符串
  */
-static NSString *TokenCreateBodyParamaters(NSString *boundary, NSDictionary *parameters){
+static NSString *TokenCreateBodyParamaters(NSString *boundary, NSDictionary *parameters) {
     NSMutableString *bodyContent = [NSMutableString string];
     
     for (NSString *key in parameters) {
@@ -74,7 +68,8 @@ static NSString *TokenCreateBodyParamaters(NSString *boundary, NSDictionary *par
     return bodyContent;
 }
 
-#pragma mark -
+#pragma mark - TokenHTTPBodyComponent
+
 typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
     TokenHTTPBodyComponentTypeFile,       // 文件地址
     TokenHTTPBodyComponentTypeData,       // 二进制的NSData
@@ -82,7 +77,14 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
     TokenHTTPBodyComponentTypeUnknown
 };
 
+/**
+ TokenHTTPBodyComponent: 每个上传的数据模型，比如：二进制文件，参数列表等
+ 内部会对每个数据进行包装，添加必要的头部，数据实体，尾部，这三个部分均使用3个NSInputStream 进行数据的读取。
+ 
+ TokenHTTPBodyStream: 将多个TokenHTTPBodyComponent 组合成流的形式，并提供给request.HTTPBodyStream
+ */
 @interface TokenHTTPBodyComponent : NSObject
+
 @property (nonatomic, readonly) TokenHTTPBodyComponentType componentType;
 @property (nonatomic, assign  ) NSStringEncoding stringEncoding;
 @property (nonatomic, readonly) NSString *boundary;
@@ -104,15 +106,19 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
 - (void)prepareForRead;
 - (NSInteger)read:(uint8_t *)buffer maxLength:(NSUInteger)length;
 - (BOOL)hasBytesAvailable;
+
 @end
 
 #pragma mark - TokenHTTPBodyStream implementation
+
 @interface TokenHTTPBodyStream()
+
 @property (readwrite) NSStreamStatus streamStatus;
 @property (readwrite, copy  ) NSError *streamError;
-@property (nonatomic, strong) NSMutableArray *bodyComponents;
+@property (nonatomic, strong) NSMutableArray <TokenHTTPBodyComponent *> *bodyComponents;
 @property (nonatomic, strong) TokenHTTPBodyComponent *currentComponent;
 @property (nonatomic, strong) NSEnumerator *componentsEnumerator;
+
 @end
 
 @implementation TokenHTTPBodyStream
@@ -135,9 +141,9 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
 }
 
 #pragma mark - public
-- (void)prepareForUpload{
-    TokenHTTPBodyComponent *component = [TokenHTTPBodyComponent httpBodyEndComponentWithBoundray:self.boundary
-                                                                                  stringEncoding:NSUTF8StringEncoding];
+
+- (void)prepareForUpload {
+    TokenHTTPBodyComponent *component = [TokenHTTPBodyComponent httpBodyEndComponentWithBoundray:self.boundary stringEncoding:NSUTF8StringEncoding];
     _length += component.bodyLength;
     [self.bodyComponents addObject:component];
     
@@ -146,7 +152,7 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
     _request.HTTPBodyStream = self;
 }
 
-- (void)appendParameters:(NSDictionary *)parameters{
+- (void)appendParameters:(NSDictionary *)parameters {
     if (![parameters isKindOfClass:[NSDictionary class]]) {
         return ;
     }
@@ -156,7 +162,7 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
     [self.bodyComponents addObject:component];
 }
 
-- (void)appendFilePath:(NSString *)filePath fileName:(nullable NSString *)fileName name:(nullable NSString *)name{
+- (void)appendFilePath:(NSString *)filePath fileName:(nullable NSString *)fileName name:(nullable NSString *)name {
     if (!filePath.length) {
         return ;
     }
@@ -169,7 +175,7 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
     [self.bodyComponents addObject:component];
 }
 
-- (void)appendData:(NSData *)data fileName:(nullable NSString *)fileName name:(nullable NSString *)name{
+- (void)appendData:(NSData *)data fileName:(nullable NSString *)fileName name:(nullable NSString *)name {
     if (![data isKindOfClass:[NSData class]]) {
         return ;
     }
@@ -182,6 +188,7 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
 }
 
 #pragma mark - rewrite
+
 - (void)open {
     if (self.streamStatus == NSStreamStatusOpen) {
         return;
@@ -250,43 +257,47 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
 }
 
 #pragma mark - getter
-- (NSMutableArray *)bodyComponents{
+
+- (NSMutableArray <TokenHTTPBodyComponent *> *)bodyComponents {
     if (!_bodyComponents) {
-        _bodyComponents = @[].mutableCopy;
+        _bodyComponents = [NSMutableArray array];
     }
     return _bodyComponents;
 }
+
 @end
 
 #pragma mark - TokenHTTPBodyComponent implementation
+
 @interface TokenHTTPBodyComponent () <NSStreamDelegate>
+
 @property (nonatomic, strong) NSInputStream *inputStream;
 @property (nonatomic, strong) NSInputStream *headerSignStream;
 @property (nonatomic, strong) NSInputStream *trailSignStream;
 @property (nonatomic, readonly, nullable) NSDictionary *parameters;
+
 @end
 
 @implementation TokenHTTPBodyComponent
 
-+ (instancetype)componentWithFileURL:(NSURL *)fileURL boundary:(NSString *)boundary;{
++ (instancetype)componentWithFileURL:(NSURL *)fileURL boundary:(NSString *)boundary {
     return [[TokenHTTPBodyComponent alloc] initWithType:TokenHTTPBodyComponentTypeFile dataSource:fileURL boundary:boundary];
 }
 
-+ (instancetype)componentWithData:(NSData *)data boundary:(NSString *)boundary;{
++ (instancetype)componentWithData:(NSData *)data boundary:(NSString *)boundary {
     return [[TokenHTTPBodyComponent alloc] initWithType:TokenHTTPBodyComponentTypeData dataSource:data boundary:boundary];
 }
 
-+ (instancetype)componentWithParameters:(NSDictionary *)parameters boundary:(NSString *)boundary;{
++ (instancetype)componentWithParameters:(NSDictionary *)parameters boundary:(NSString *)boundary {
     return [[TokenHTTPBodyComponent alloc] initWithType:TokenHTTPBodyComponentTypeParameters dataSource:parameters boundary:boundary];
 }
 
-+ (instancetype)httpBodyEndComponentWithBoundray:(NSString *)boundray stringEncoding:(NSStringEncoding)stringEncoding{
++ (instancetype)httpBodyEndComponentWithBoundray:(NSString *)boundray stringEncoding:(NSStringEncoding)stringEncoding {
     NSString *bodyTrail = [NSString stringWithFormat:@"--%@--%@",boundray, TokenBodyCRLF];
     return [[TokenHTTPBodyComponent alloc] initWithString:bodyTrail stringEncoding:stringEncoding];
 }
 
-- (instancetype)initWithString:(NSString *)string stringEncoding:(NSStringEncoding)stringEncoding
-{
+- (instancetype)initWithString:(NSString *)string stringEncoding:(NSStringEncoding)stringEncoding {
     self = [super init];
     if (self) {
         NSData *data          = [string dataUsingEncoding:stringEncoding];
@@ -299,7 +310,7 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
     return self;
 }
 
-- (instancetype)initWithType:(TokenHTTPBodyComponentType)type dataSource:(id)dataSource boundary:(NSString *)boundary;{
+- (instancetype)initWithType:(TokenHTTPBodyComponentType)type dataSource:(id)dataSource boundary:(NSString *)boundary {
     self = [super init];
     if (self) {
         _bodyLength     = 0;
@@ -322,7 +333,7 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
                     _bodyLength += [fileAttrs[NSFileSize] unsignedLongLongValue];
                 }
                 
-                if(error){
+                if (error) {
                     _streamError = error;
                 }
                 
@@ -340,7 +351,7 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
     return self;
 }
 
-- (void)prepareForRead{
+- (void)prepareForRead {
     if (_componentType != TokenHTTPBodyComponentTypeParameters) {
         NSString *bodyHeaderSign   = TokenCreateBodyFileHeaderSign(_boundary, _name, _fileName);
         NSData *headData           = [bodyHeaderSign dataUsingEncoding:_stringEncoding];
@@ -351,7 +362,7 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
         [_headerSignStream open];
     }
     
-    if (_componentType == TokenHTTPBodyComponentTypeParameters){
+    if (_componentType == TokenHTTPBodyComponentTypeParameters) {
         NSString *bodyString = TokenCreateBodyParamaters(_boundary, _parameters);
         NSData *data         = [bodyString dataUsingEncoding:_stringEncoding];
         _inputStream         = [[NSInputStream alloc] initWithData:data];
@@ -370,7 +381,7 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
     [_trailSignStream open];
 }
 
-- (NSInteger)read:(uint8_t *)buffer maxLength:(NSUInteger)length{
+- (NSInteger)read:(uint8_t *)buffer maxLength:(NSUInteger)length {
     
     if (_streamError) {
         return -1;
@@ -396,11 +407,10 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
     [_trailSignStream hasBytesAvailable];
 }
 
-- (void)stream:(NSStream *)aStream handleEvent:(NSStreamEvent)eventCode{
+- (void)stream:(NSStream *)aStream handleEvent:(NSStreamEvent)eventCode {
     if (eventCode == NSStreamEventErrorOccurred) {
         _streamError = aStream.streamError;
     }
 }
 
 @end
-
