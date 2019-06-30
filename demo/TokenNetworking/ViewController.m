@@ -50,6 +50,8 @@
                                            }
                                          )
                  )
+    /// 重试次数只可以设置 1 2 3
+    .retryCount(1)
     /// 下面四个设置回调处理的闭包并非必选，偶是选用
     .responseData(^(NSURLSessionTask * _Nonnull task, NSData * _Nonnull responseData) {
         NSLog(@"--> Task responseData");

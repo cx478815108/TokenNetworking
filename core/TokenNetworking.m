@@ -36,6 +36,7 @@ static NSOperationQueue *TokenNetSessionDelegateQueue() {
 @property (nonatomic, copy) TokenNetSuccessTextBlock responseTextAction;
 @property (nonatomic, copy) TokenNetSuccessJSONBlock responseJSONAction;
 @property (nonatomic, copy) TokenNetFailureParameterBlock failureAction;
+@property (nonatomic, assign) NSUInteger privateRetryCount;
 
 @end
 
@@ -305,6 +306,15 @@ static NSOperationQueue *TokenNetSessionDelegateQueue() {
     };
 }
 
+- (TokenRetryCountBlock)retryCount {
+    return ^TokenNetMicroTask * _Nonnull(NSUInteger retryCount) {
+        if (retryCount >= 1 && retryCount <= 3) {
+            self.privateRetryCount = retryCount;
+        }
+        return self;
+    };
+}
+
 #pragma mark - delegate
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task
@@ -324,6 +334,15 @@ willPerformHTTPRedirection:(NSHTTPURLResponse *)response
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task
 didCompleteWithError:(nullable NSError *)error {
+    
+    if (error && _privateRetryCount) {
+        /// 直接发起新的request，剩余重试次数 -1
+        _privateRetryCount -= 1;
+        NSURLSession *newSession = [NSURLSession sessionWithConfiguration:session.configuration.copy delegate:self delegateQueue:session.delegateQueue.copy];
+        NSURLSessionTask *newTask = [newSession dataTaskWithRequest:task.currentRequest.copy];
+        [newTask resume];
+        return;
+    }
     
     dispatch_block_t processFinish = ^(){
         [self.networking removeMicroTask:self];

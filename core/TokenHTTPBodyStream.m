@@ -110,7 +110,7 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
 @interface TokenHTTPBodyStream()
 @property (readwrite) NSStreamStatus streamStatus;
 @property (readwrite, copy  ) NSError *streamError;
-@property (nonatomic, strong) NSMutableArray *bodyComponents;
+@property (nonatomic, strong) NSMutableArray <TokenHTTPBodyComponent *> *bodyComponents;
 @property (nonatomic, strong) TokenHTTPBodyComponent *currentComponent;
 @property (nonatomic, strong) NSEnumerator *componentsEnumerator;
 @end
@@ -250,9 +250,9 @@ typedef NS_ENUM(NSUInteger, TokenHTTPBodyComponentType) {
 }
 
 #pragma mark - getter
-- (NSMutableArray *)bodyComponents{
+- (NSMutableArray <TokenHTTPBodyComponent *> *)bodyComponents{
     if (!_bodyComponents) {
-        _bodyComponents = @[].mutableCopy;
+        _bodyComponents = [NSMutableArray array];
     }
     return _bodyComponents;
 }
