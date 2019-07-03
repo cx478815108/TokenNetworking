@@ -48,14 +48,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  添加要post的表单参数
-
+ 
  @param parameters 表单参数
  */
 - (void)appendParameters:(NSDictionary *)parameters;
 
 /**
  添加一个文件路径，将会通过NSInputStream 读取这个文件并通过流的形式上传
-
+ 
  @param filePath 文件路径
  @param fileName 告诉后台的文件名
  @param name 表单上传的name 字段
@@ -64,12 +64,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  添加一个NSData，将会通过NSInputStream 读取这个data并通过流的形式上传
-
+ 
  @param data 二进制数据
  @param fileName 告诉后台的文件名
  @param name 表单上传的name 字段
  */
 - (void)appendData:(NSData *)data fileName:(nullable NSString *)fileName name:(nullable NSString *)name;
+
 @end
 
 NS_ASSUME_NONNULL_END

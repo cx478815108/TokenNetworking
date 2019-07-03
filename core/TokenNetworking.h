@@ -32,6 +32,7 @@ typedef TokenNetMicroTask *_Nonnull(^TokenResponseDataBlock)(TokenNetSuccessData
 typedef TokenNetMicroTask *_Nonnull(^TokenResponseJSONBlock)(TokenNetSuccessJSONBlock jsonBlock);
 typedef TokenNetMicroTask *_Nonnull(^TokenResponseTextBlock)(TokenNetSuccessTextBlock textBlock);
 typedef TokenNetMicroTask *_Nonnull(^TokenNetFailureBlock)(TokenNetFailureParameterBlock failure);
+typedef TokenNetMicroTask *_Nonnull(^TokenRetryCountBlock)(NSUInteger retryCount);
 
 typedef TokenNetworking *_Nonnull(^TokenNetworkingCreateBlock)(NSURLSessionConfiguration *sessionConfiguration, NSOperationQueue *delegateQueue);
 typedef TokenNetworking *_Nullable(^TokenNetworkingTasksBlock)(NSArray <TokenNetMicroTask *> *tasks, dispatch_block_t finish);
@@ -52,6 +53,8 @@ typedef TokenNetMicroTask *_Nonnull(^TokenNetParametersBlock)(NSString *urlStrin
 @property (nonatomic, copy, readonly) TokenNetFailureBlock    failure;
 /// 执行 .next 之后返回 TokenNetworking 对象，可以进行新请求的发送
 @property (nonatomic, weak, readonly) TokenNetworking *next;
+/// 设置重试次数 只可以为 1 2 3
+@property (nonatomic, assign, readonly) TokenRetryCountBlock retryCount;
 
 @end
 
