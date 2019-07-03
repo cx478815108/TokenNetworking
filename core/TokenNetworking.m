@@ -340,8 +340,8 @@ didCompleteWithError:(nullable NSError *)error {
     if (error && _privateRetryCount) {
         /// 直接发起新的request，剩余重试次数 -1
         _privateRetryCount -= 1;
-        NSURLSession *newSession = [NSURLSession sessionWithConfiguration:session.configuration.copy delegate:self delegateQueue:session.delegateQueue];
-        NSURLSessionTask *newTask = [newSession dataTaskWithRequest:task.currentRequest.copy];
+        NSURLSessionDataTask *newTask = [session dataTaskWithRequest:task.currentRequest.copy];
+        self.dataTask = newTask;
         [newTask resume];
         return;
     }
