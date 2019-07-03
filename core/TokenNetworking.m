@@ -338,12 +338,12 @@ willPerformHTTPRedirection:(NSHTTPURLResponse *)response
 didCompleteWithError:(nullable NSError *)error {
     
     if (error && _privateRetryCount) {
-        /// 直接发起新的request，剩余重试次数 -1
+        /// 剩余重试次数 -1，清除错误数据，发起新的request
         _privateRetryCount -= 1;
+        _data = [NSMutableData data];
         NSURLSessionDataTask *newTask = [session dataTaskWithRequest:task.currentRequest.copy];
         self.dataTask = newTask;
-        [newTask resume];
-        return;
+        return [newTask resume];
     }
     
     dispatch_block_t processFinish = ^() {
@@ -358,8 +358,7 @@ didCompleteWithError:(nullable NSError *)error {
                 !self.failureAction ?: self.failureAction(error);
             });
         }
-        processFinish();
-        return ;
+        return processFinish();
     }
     
     NSData *data = self.data.copy;

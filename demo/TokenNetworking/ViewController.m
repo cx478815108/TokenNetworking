@@ -51,7 +51,7 @@
                                            }
                                          )
                  )
-    .retryCount(1)
+    .retryCount(2)
     /// 下面四个设置回调处理的闭包并非必选，偶是选用
     .responseData(^(NSURLSessionTask * _Nonnull task, NSData * _Nonnull responseData) {
         NSLog(@"--> Task responseData");
@@ -103,7 +103,7 @@
     TokenNetworking
     .networking
     .getWithURL(@"urlStr", nil)
-    .retryCount(1)
+    .retryCount(2)
     .failure(^(NSError * _Nonnull error) {
         NSLog(@"--> Task A Error");
     })
@@ -122,9 +122,9 @@
     })
     .next
     .getWithURL(@"urlStr", nil)
-    .retryCount(1)
+    .retryCount(3)
     .failure(^(NSError * _Nonnull error) {
-        NSLog(@"--> Task C %@",error);
+        NSLog(@"--> Task C Error");
     });
 }
 
