@@ -16,6 +16,7 @@
 		70DE37B822B7470C0039C124 /* TokenNetworkingAssistant.m in Sources */ = {isa = PBXBuildFile; fileRef = 70DE37B022B7470C0039C124 /* TokenNetworkingAssistant.m */; };
 		70DE37B922B7470C0039C124 /* TokenHTTPBodyStream.m in Sources */ = {isa = PBXBuildFile; fileRef = 70DE37B122B7470C0039C124 /* TokenHTTPBodyStream.m */; };
 		BC6836F322CA6D370091E603 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = BC6836F222CA6D370091E603 /* LaunchScreen.storyboard */; };
+		BC6EFEDE2402611400A86986 /* TokenHTTPBodyComponent.m in Sources */ = {isa = PBXBuildFile; fileRef = BC6EFEDD2402611400A86986 /* TokenHTTPBodyComponent.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,6 +36,9 @@
 		70DE37B422B7470C0039C124 /* TokenHTTPBodyStream.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TokenHTTPBodyStream.h; sourceTree = "<group>"; };
 		70DE37B522B7470C0039C124 /* TokenNetworkingAssistant.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TokenNetworkingAssistant.h; sourceTree = "<group>"; };
 		BC6836F222CA6D370091E603 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		BC6EFEDC2402611400A86986 /* TokenHTTPBodyComponent.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TokenHTTPBodyComponent.h; sourceTree = "<group>"; };
+		BC6EFEDD2402611400A86986 /* TokenHTTPBodyComponent.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TokenHTTPBodyComponent.m; sourceTree = "<group>"; };
+		BC6EFEDF2402629D00A86986 /* TokenNetworkingHeader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TokenNetworkingHeader.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -84,12 +88,15 @@
 		70DE37AD22B7470C0039C124 /* core */ = {
 			isa = PBXGroup;
 			children = (
+				BC6EFEDC2402611400A86986 /* TokenHTTPBodyComponent.h */,
+				BC6EFEDD2402611400A86986 /* TokenHTTPBodyComponent.m */,
 				70DE37B422B7470C0039C124 /* TokenHTTPBodyStream.h */,
 				70DE37B122B7470C0039C124 /* TokenHTTPBodyStream.m */,
 				70DE37B322B7470C0039C124 /* TokenNetworking.h */,
 				70DE37AF22B7470C0039C124 /* TokenNetworking.m */,
 				70DE37B522B7470C0039C124 /* TokenNetworkingAssistant.h */,
 				70DE37B022B7470C0039C124 /* TokenNetworkingAssistant.m */,
+				BC6EFEDF2402629D00A86986 /* TokenNetworkingHeader.h */,
 			);
 			name = core;
 			path = ../core;
@@ -171,6 +178,7 @@
 				70DE37B722B7470C0039C124 /* TokenNetworking.m in Sources */,
 				70A0030B22AD252D007178A7 /* main.m in Sources */,
 				70A002FD22AD252C007178A7 /* AppDelegate.m in Sources */,
+				BC6EFEDE2402611400A86986 /* TokenHTTPBodyComponent.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

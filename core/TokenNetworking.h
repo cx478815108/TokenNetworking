@@ -72,6 +72,7 @@ typedef TokenNetMicroTask *_Nonnull(^TokenNetParametersBlock)(NSString *urlStrin
 @property (nonatomic, copy, readonly) TokenNetParametersBlock postWithURL;
 
 - (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
 
 @end
 

@@ -10,27 +10,28 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+/// 流式上传使用的Body流
 @interface TokenHTTPBodyStream : NSInputStream
 
 /**
- 字符串编码
+ 字符串编码，默认NSUTF8StringEncoding
  */
-@property (nonatomic, assign  ) NSStringEncoding stringEncoding;
+@property (nonatomic, assign) NSStringEncoding stringEncoding;
 
 /**
- 数据读取的延迟时间
+ 数据读取的延迟时间，默认不延迟
  */
-@property (nonatomic, assign  ) NSTimeInterval readDelay;
+@property (nonatomic, assign) NSTimeInterval readDelay;
 
 /**
- http协议 formdata上传的 分割边界
+ http协议 formdata上传的 分割边界，拥有默认值，也可以自定义
  */
 @property (nonatomic, readonly) NSString *boundary;
 
 /**
- 一次性读取的最大字节数
+ 一次性读取的最大字节数，默认NSIntegerMax
  */
-@property (nonatomic, assign  ) unsigned long long maxBytesForRead;
+@property (nonatomic, assign) unsigned long long maxBytesForRead;
 
 /**
  整个传输的字节数
@@ -41,6 +42,9 @@ NS_ASSUME_NONNULL_BEGIN
  请求
  */
 @property (nonatomic, readonly, weak) NSMutableURLRequest *request;
+
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
 
 - (instancetype)initWithRequest:(NSMutableURLRequest *)request;
 

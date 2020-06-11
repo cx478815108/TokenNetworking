@@ -7,8 +7,7 @@
 //
 
 #import "ViewController.h"
-#import "TokenHTTPBodyStream.h"
-#import "TokenNetworking.h"
+#import "TokenNetworkingHeader.h"
 
 @interface ViewController () <NSURLSessionTaskDelegate, NSStreamDelegate>
 @property(nonatomic, strong) NSURLSession *session;
@@ -38,17 +37,17 @@
                  .token_setTimeout(25)
                  .token_addHeaderValues(
                                         @{
-                                          /// 设置 请求头
-                                          @"key1": @"value1",
-                                          @"key2": @"value2"
-                                          }
+                                            /// 设置 请求头
+                                            @"key1": @"value1",
+                                            @"key2": @"value2"
+                                        }
                                         )
                  .token_setHTTPParameter(
                                          @{
-                                           /// 设置 HTTPBody
-                                           @"key1": @"value1",
-                                           @"key2": @"value2"
-                                           }
+                                             /// 设置 HTTPBody
+                                             @"key1": @"value1",
+                                             @"key2": @"value2"
+                                         }
                                          )
                  )
     .retryCount(2)
